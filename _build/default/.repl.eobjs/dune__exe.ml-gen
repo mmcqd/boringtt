@@ -1,0 +1,17 @@
+(** @canonical Dune__exe.Ast *)
+module Ast = Dune__exe__Ast
+
+(** @canonical Dune__exe.Dynamics *)
+module Dynamics = Dune__exe__Dynamics
+
+(** @canonical Dune__exe.Lexer *)
+module Lexer = Dune__exe__Lexer
+
+(** @canonical Dune__exe.Parser *)
+module Parser = Dune__exe__Parser
+
+(** @canonical Dune__exe.Repl *)
+module Repl = Dune__exe__Repl
+
+(** @canonical Dune__exe.Statics *)
+module Statics = Dune__exe__Statics
