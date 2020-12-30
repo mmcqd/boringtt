@@ -6,7 +6,9 @@ module T = Parser
 }
 
 
-let ident = ['A'-'Z' 'a'-'z' '_']['A'-'Z' 'a'-'z' '_' '0'-'9']*
+(* let ident = ['A'-'Z' 'a'-'z' '_']['A'-'Z' 'a'-'z' '_' '0'-'9']* *)
+
+let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.']+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
 let whitespace = [' ' '\t' '\n']
@@ -15,6 +17,8 @@ rule initial = parse
   | whitespace+ { initial lexbuf }
   | '(' { T.L_paren }
   | ')' { T.R_paren }
+  | '[' { T.L_square }
+  | ']' { T.R_square }
   | '\\' | "λ" { T.Lambda }
   | ':' { T.Colon }
   | '*' | "×" { T.Star }

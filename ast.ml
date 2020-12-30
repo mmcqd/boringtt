@@ -40,6 +40,7 @@ let (++) g (key,data) = Context.set g ~key ~data
 
 
 
+
 let f x = In (F x)
 let b x = In (B x)
 let typ x = In (Type x)
@@ -51,6 +52,7 @@ let pair (e1,e2) = In (Pair (e1,e2))
 let proj1 e = In (Proj1 e)
 let proj2 e = In (Proj2 e)
 let annot (e,t) = In (Annot (e,t))
+
 
 
 let into f = In f
@@ -114,20 +116,6 @@ let unbind_all = top_down (function
   | Lam (x,e) -> if free_in x e then Lam (unbind (x,e)) else Lam (x,instantiate (F x) e)
   | x -> x
 )
-(* 
-let pretty ast = ast |> unbind_all |> fold (function
-  | B _ -> failwith "Should never print bound vars"
-  | F x -> x
-  | Pi (t,(x,e)) -> sprintf "((%s : %s) -> %s)" x t e
-  | Sigma (t,(x,e)) -> sprintf "((%s : %s) * %s)" x t e
-  | Lam (x,e) -> sprintf "(\\(%s) %s)" x e
-  | App (e1,e2) -> sprintf "(%s) (%s)" e1 e2
-  | Pair (e1,e2) -> sprintf "(%s, %s)" e1 e2
-  | Proj1 e -> sprintf "(%s).1" e
-  | Proj2 e -> sprintf "(%s).2" e
-  | Type i -> "Type" ^ Int.to_string i
-  | Annot (e,t) -> sprintf "(%s : %s)" e t
-)  *)
 
 
 let paren e = "(" ^ e ^ ")"
@@ -137,7 +125,7 @@ let pretty ast =
       | B _ -> failwith "Should never print bound vars"
       | F x -> x
       | Pi (t,(x,e)) ->
-        if free_in x e then sprintf "(%s : %s) -> %s" x (pretty t) (pretty e) else
+        if free_in x e then sprintf "[%s : %s] -> %s" x (pretty t) (pretty e) else
         let t' = (match out t with Pi _ -> paren (pretty t) | _ -> pretty t) in
         sprintf "%s -> %s" t' (pretty e)
       | Sigma (t,(x,e)) ->
@@ -151,7 +139,7 @@ let pretty ast =
           | Lam _,_ | Pi _,_ -> sprintf "(%s) %s" (pretty e1) (pretty e2)
           | _ -> sprintf "%s %s" (pretty e1) (pretty e2)
         end
-      | Lam (x,e) -> sprintf "\\(%s) %s" x (pretty e)
+      | Lam (x,e) -> sprintf "\\[%s] %s" x (pretty e)
       | Pair (e1,e2) -> sprintf "(%s , %s)" (pretty e1) (pretty e2)
       | Proj1 e -> sprintf "%s.1" (pretty e)
       | Proj2 e -> sprintf "%s.2" (pretty e)

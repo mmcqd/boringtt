@@ -5,6 +5,21 @@ open Dynamics
 
 exception TypeError of string
 
+let assuming _ = ()
+
+let rec sub t1 t2 =
+  match out t1,out t2 with
+    | Type i, Type j -> i < j
+    | Sigma (a,(x,b)), Sigma (a',(x',b')) ->
+      let (_,b) = unbind (x,b) in
+      let (_,b') = unbind (x',b') in
+      sub a a' && sub b b'
+    | Pi (a,(x,b)), Pi (a',(x',b')) ->
+      let (_,b) = unbind (x,b) in
+      let (_,b') = unbind (x',b') in
+      sub a' a && sub b b'
+    | _ -> false
+
 let rec synth ((g,d) as c) e =
   match out e with
     | F x -> (match Context.find g x with | Some t -> t | None -> raise @@ TypeError (sprintf "Unbound variable: %s" x))
@@ -52,14 +67,13 @@ let rec synth ((g,d) as c) e =
       match out e,out (beta d t) with
         | Lam (_,e), Pi (a,(y,b)) ->
           let (y,b) = unbind (y,b) in
-          let (x,e) = y,instantiate (F y) e in
-          check (g ++ (x,a) ++ (y,a),d) e b
+          let e = instantiate (F y) e in
+          check (g ++ (y,a),d) e b
         | Pair (e1,e2), Sigma (a,(x,b)) ->
           let (x,b) = unbind (x,b) in
           check c e1 a; check (g ++ (x,a),d) e2 (beta (d ++ (x,e1)) b)
         | _ ->
           let a = synth c e in 
-          if not @@ beta_equal d a t then raise @@ TypeError (sprintf "Expected %s to have type %s, but it has type %s" (pretty e) (pretty t) (pretty a)) 
+          if not @@ (beta_equal d a t || sub (beta d a) (beta d t)) then raise @@ TypeError (sprintf "Expected %s to have type %s, but it has type %s" (pretty e) (pretty t) (pretty a)) 
 
 
-    and assuming _ = ()

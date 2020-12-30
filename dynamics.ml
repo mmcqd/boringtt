@@ -4,7 +4,7 @@ open Ast
 
 
 let subst e x = bottom_up (function
-  | F y when equal_var x y -> e
+  | F y when equal_var x y -> out e
   | x -> x
 )
 

@@ -1,25 +1,29 @@
-let T = (A : Type) → A → A
+let ⊤ = [A : Type] → A → A
 
-let id : T = λ(_)λ(x) x
+let id : ⊤ =
+λ[_ x] x
 
-let Id : (A : Type) → A → A → Type 1 =
-λ(A)λ(x)λ(y) (P : A → Type) → P x → P y
+let ⟨⟩ = id
 
-let refl : (A : Type) → (x : A) → Id A x x =
-λ(_)λ(_)λ(_)λ(Px) Px
+let ⊥ = [A : Type] → A
 
+let ⊎ : Type → Type → Type 2 =
+λ[A B] [C : Type] → (A → C) → (B → C) → C
 
-let Bool1 = (A : Type 1) → A → A → A
+let inj₁ : [A B : Type] → A → ⊎ A B =
+λ[_ _ a _ l r] l a
 
-let tt1 : Bool1 = λ(_)λ(x)λ(y) x
-let ff1 : Bool1 = λ(_)λ(x)λ(y) y
+let inj₂ : [A B : Type] → B → ⊎ A B =
+λ[_ _ b _ l r] r b
 
-let Plus : Type → Type → Type 2 =
-λ(A)λ(B) (tag : Bool1) × tag Type A B
+let Id : [A : Type] → A → A → Type 1 =
+λ[A x y] [P : A → Type] → P x → P y
 
-let inl : (A : Type) → (B : Type) → A → Plus A B =
-λ(A)λ(B)λ(a) (tt1 , a)
+let refl : [A : Type] → [x : A] → Id A x x =
+λ[_ _ _ x] x
 
-let inr : (A : Type) → (B : Type) → B → Plus A B =
-λ(A)λ(B)λ(b) (ff1 , b)
+let sym : [A : Type] → [x y : A] → Id A x y → Id A y x =
+λ[A x y x≡y P] x≡y (λ[z] P z → P x) (refl A x P)
 
+let trans : [A : Type] → [x y z : A] → Id A x y → Id A y z → Id A x z =
+λ[A x y z x≡y y≡z P Px] y≡z P (x≡y P Px)
