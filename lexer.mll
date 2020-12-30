@@ -6,9 +6,8 @@ module T = Parser
 }
 
 
-(* let ident = ['A'-'Z' 'a'-'z' '_']['A'-'Z' 'a'-'z' '_' '0'-'9']* *)
 
-let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.']+
+let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' ]+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
 let whitespace = [' ' '\t' '\n']
@@ -23,6 +22,7 @@ rule initial = parse
   | ':' { T.Colon }
   | '*' | "×" { T.Star }
   | ',' { T.Comma }
+  | '^' { T.Carat }
   | ".1" { T.DotOne }
   | ".2" { T.DotTwo }
   | "->" | "→" { T.Arrow }

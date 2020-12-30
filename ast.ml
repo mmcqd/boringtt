@@ -18,6 +18,7 @@ type 'ast astF =
   | Proj1 of 'ast
   | Proj2 of 'ast
   | Annot of 'ast * 'ast
+  | Lift of 'ast * int
   [@@deriving equal,map,show]
 
 let map_depth_astF d f = function
@@ -52,7 +53,7 @@ let pair (e1,e2) = In (Pair (e1,e2))
 let proj1 e = In (Proj1 e)
 let proj2 e = In (Proj2 e)
 let annot (e,t) = In (Annot (e,t))
-
+let lift (e,n) = In (Lift (e,n))
 
 
 let into f = In f
@@ -107,6 +108,7 @@ let free_in x = fold (function
   | Pi (t,(_,e)) | Sigma (t,(_,e)) -> t || e
   | Pair (e1,e2) | App (e1,e2) | Annot (e1,e2) -> e1 || e2
   | Proj1 e | Proj2 e -> e
+  | Lift (e,_) -> e
   | _ -> false
 )
 
@@ -145,5 +147,6 @@ let pretty ast =
       | Proj2 e -> sprintf "%s.2" (pretty e)
       | Type i -> "Type" ^ Int.to_string i
       | Annot (e,t) -> sprintf "(%s : %s)" (pretty e) (pretty t)
+      | Lift (e,n) -> sprintf "%s^%s" (pretty e) (Int.to_string n)
   in ast |> unbind_all |> pretty
     

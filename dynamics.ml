@@ -8,6 +8,12 @@ let subst e x = bottom_up (function
   | x -> x
 )
 
+
+let lift n = top_down (function
+  | Type i -> Type (i + n)
+  | x -> x
+)
+
 let rec beta g ast =
   match out ast with
     | F x -> (match Context.find g x with None -> f x | Some e -> e)
@@ -42,6 +48,7 @@ let rec beta g ast =
       let (x',e') = unbind (x,e) in
       sigma (beta g t,(x,bind x' (beta g e')))
     | Annot (e,_) -> beta g e
+    | Lift (e,n) -> lift n @@ beta g e
     | x -> into x
 
 

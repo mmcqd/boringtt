@@ -10,7 +10,7 @@ let typ_arg_fold c (xs,t,e) = Core.List.fold_right xs ~init:e ~f:(fun x e -> c (
 
 %token Eof
 %token Let Equal
-%token Lambda Colon Comma DotOne DotTwo
+%token Lambda Colon Comma DotOne DotTwo Carat
 %token Arrow Star
 %token L_paren R_paren L_square R_square
 %token <string> Ident
@@ -20,6 +20,7 @@ let typ_arg_fold c (xs,t,e) = Core.List.fold_right xs ~init:e ~f:(fun x e -> c (
 %right Arrow
 %right Star
 %right Comma
+%nonassoc Carat
 
 %type <Ast.stm list> init
 
@@ -52,6 +53,7 @@ let app_expr :=
 
 let simple_expr := 
   | ~ = Ident ; <Ast.f>
+  | ~ = expr; Carat; ~ = Dec_const; <Ast.lift>
   | a = square(annot_args); Arrow; e = expr; { let (xs,t) = a in typ_arg_fold Ast.pi (xs,t,e) }
   | t1 = expr; Arrow; t2 = expr; { Ast.pi (t1,("",t2)) }
   | a = square(annot_args); Star; e = expr; { let (xs,t) = a in typ_arg_fold Ast.sigma (xs,t,e) }

@@ -60,6 +60,7 @@ let rec synth ((g,d) as c) e =
         | t -> raise @@ TypeError (sprintf "%s has type %s, it cannot be projected from" (pretty e) (pretty (into t)))
       end
     | Annot (e,t) -> check c e t; beta d t
+    | Lift (e,n) -> lift n (synth c e)
     | e -> raise @@ TypeError (sprintf "Cannot synthesize a type for %s" (pretty (into e)))
  
     and check ((g,d) as c) e t = 
