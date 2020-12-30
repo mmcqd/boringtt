@@ -1,13 +1,9 @@
-let ⊤ = [A : Type] → A → A
-
-let id : ⊤ =
-λ[_ x] x
-
-let ⟨⟩ = id
+postulate ⊤ : Type
+postulate ⟨⟩ : ⊤
 
 let ⊥ = [A : Type] → A
 
-let ⊎ : Type → Type → Type 2 =
+let ⊎ : Type → Type → Type 1 =
 λ[A B] [C : Type] → (A → C) → (B → C) → C
 
 let inj₁ : [A B : Type] → A → ⊎ A B =
@@ -19,17 +15,37 @@ let inj₂ : [A B : Type] → B → ⊎ A B =
 let Id : [A : Type] → A → A → Type 1 =
 λ[A x y] [P : A → Type] → P x → P y
 
-let refl : [A : Type] → [x : A] → Id A x x =
+let refl : [A : Type] [x : A] → Id A x x =
 λ[_ _ _ x] x
 
-let sym : [A : Type] → [x y : A] → Id A x y → Id A y x =
+let sym : [A : Type] [x y : A] → Id A x y → Id A y x =
 λ[A x y x≡y P] x≡y (λ[z] P z → P x) (refl A x P)
 
-let trans : [A : Type] → [x y z : A] → Id A x y → Id A y z → Id A x z =
+let trans : [A : Type] [x y z : A] → Id A x y → Id A y z → Id A x z =
 λ[A x y z x≡y y≡z P Px] y≡z P (x≡y P Px)
 
-let cong : [A B : Type] → [f : A → B] → [x y : A] → Id A x y → Id B (f x) (f y) =
-λ[A B f x y x≡y] x≡y^1 (λ[z] Id B (f x) (f z)) (refl B (f x))
+let cong : [A B : Type] [f : A → B] [x y : A] → Id A x y → Id B (f x) (f y) =
+λ[A B f x y x≡y] x≡y^1 (λ[y] Id B (f x) (f y)) (refl B (f x))
+
+let transp : [A B : Type] → Id^1 Type A B → A → B =
+λ[A B A≡B a] A≡B (λ[B] B) a
+
+postulate
+  J : [A : Type] [C : [x y : A] → Id A x y → Type]
+      → ([x : A] → C x x (refl A x))
+      → [M N : A] [P : Id A M N]
+      → C M N P
+
+{-
+let sym²-refl : [A : Type] [x y : A] [x≡y : Id A x y]
+    	        → Id^1 (Id A x y) x≡y (sym A y x (sym A x y x≡y)) =
+λ[A x y x≡y] _
+
+let transp₂ : [A B : Type] [x y : A] [A≡B : Id^1 Type A B]
+        → Id A x y
+	→ Id B (transp A B A≡B x) (transp A B A≡B y) =
+λ[A B x y A≡B x≡y P] _
+-}
 
 let ℕ = [A : Type] → (A → A) → A → A
 let Nat = ℕ
@@ -41,9 +57,20 @@ let S : ℕ → ℕ =
 λ[n A s z] s (n A s z)
 
 postulate
-  ℕ-ind : [n : ℕ] → [P : ℕ → Type] → P Z → ([m : ℕ] → P m → P (S m)) → P n
+  ℕ-ind : [n : ℕ] [P : ℕ → Type] → P Z → ([m : ℕ] → P m → P (S m)) → P n
 
-let Nat-ind = ℕ-ind
+postulate
+  ℕ-ind-β₁ : [P : ℕ → Type]
+              [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (P Z) (ℕ-ind Z P base step) base
+
+postulate
+  ℕ-ind-β₂ : [m : ℕ]
+	      [P : ℕ → Type]
+  	      [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (S m) (ℕ-ind (S m) base step) (step m (ℕ-ind m base step))
 
 let add : ℕ → ℕ → ℕ =
 λ[m n] m^1 ℕ S n
@@ -54,9 +81,40 @@ let mul : ℕ → ℕ → ℕ =
 let exp : ℕ → ℕ → ℕ =
 λ[m n] n^1 ℕ (mul m) (S Z)
 
-let 1+1≡2 : Id^2 ℕ (add (S Z) (S Z)) (S (S Z)) = refl^2 ℕ (S (S Z))
+let 1+1≡2 : Id^1 ℕ (add (S Z) (S Z)) (S (S Z)) = refl^1 ℕ (S (S Z))
 
-let add-id-l : [n : ℕ] → Id^2 ℕ (add Z n) n =
-λ[n] refl^2 ℕ n
+let add-id-l : [n : ℕ] → Id^1 ℕ (add Z n) n =
+λ[n] refl^1 ℕ n
+
+let ∞-ℕ : [n : ℕ] → [m : ℕ] * Id^1 ℕ m (S n) =
+λ[n] (S n , refl^1 ℕ (S n))
+
+let curry : [A B C : Type] → (A → B → C) → A * B → C =
+λ[_ _ _ f p] f p.1 p.2
+
+let uncurry : [A B C : Type] → (A * B → C) → A → B → C =
+λ[_ _ _ f x y] f (x,y)
+
+let Vec : ℕ → Type → Type =
+λ[n A] n^1 Type (λ[x] A * x) ⊤
+
+let vnil : [A : Type] → Vec Z A =
+λ[_] ⟨⟩
+
+let ↔ : Type → Type → Type =
+λ[A B] (A → B) * (B → A)
+
+let ≃ : Type → Type → Type 1 =
+λ[A B] [f : A → B] * [g : B → A] * ([x : A] → Id A x (g (f x))) * ([y : B] → Id B y (f (g y)))
+
+postulate
+  univalence : [A B : Type] → ≃ A B → Id^1 Type A B
+
+postulate
+  fun-ext : [A B : Type] [f g : A → B] → ([x : A] → Id B (f x) (g x)) → Id (A → B) f g
+
+postulate
+  ω : ⊥
+
 
 

@@ -6,25 +6,30 @@ let r = ref 0
 type var = string
   [@@deriving equal,show]
 
+
 type 'ast astF =
   | F of var
   | B of int
   | Type of int
-  | Pi of 'ast * (var * 'ast)
-  | Lam of (var * 'ast)
+  | Bind of ('ast binder) * (var * 'ast)
   | App of 'ast * 'ast
-  | Sigma of 'ast * (var * 'ast)
   | Pair of 'ast * 'ast
   | Proj1 of 'ast
   | Proj2 of 'ast
   | Annot of 'ast * 'ast
   | Lift of 'ast * int
-  [@@deriving equal,map,show]
+  | Meta of int
+  [@@deriving map,show,equal]
+
+and 'ast binder = 
+  | Pi of 'ast
+  | Sigma of 'ast
+  | Lam
+  | ALam of 'ast
+  [@@deriving map,show,equal]
 
 let map_depth_astF d f = function
-  | Lam (x,e) -> Lam (x,f (d+1) e)
-  | Pi (t,(x,e)) -> Pi (f d t,(x,f (d+1) e))
-  | Sigma (t,(x,e)) -> Sigma (f d t,(x,f (d+1) e))
+  | Bind (b,(x,e)) -> Bind (map_binder (f d) b,(x,f (d+1) e))
   | x -> map_astF (f d) x 
 
 
@@ -35,6 +40,7 @@ type ast = In of ast astF
 type stm = 
   | Decl of var * ast
   | Eval of ast
+  | Postulate of var * ast
 
 module Context = String.Map
 let (++) g (key,data) = Context.set g ~key ~data
@@ -45,15 +51,17 @@ let (++) g (key,data) = Context.set g ~key ~data
 let f x = In (F x)
 let b x = In (B x)
 let typ x = In (Type x)
-let pi (t,(x,e)) = In (Pi (t,(x,e)))
-let sigma (t,(x,e)) = In (Sigma (t,(x,e)))
+let pi (t,(x,e)) = In (Bind (Pi t,(x,e)))
+let sigma (t,(x,e)) = In (Bind (Sigma t,(x,e)))
 let app (e1,e2) = In (App (e1,e2))
-let lam (x,e) = In (Lam (x,e))
+let lam (x,e) = In (Bind (Lam,(x,e)))
+let alam (t,(x,e)) = In (Bind (ALam t,(x,e)))
 let pair (e1,e2) = In (Pair (e1,e2))
 let proj1 e = In (Proj1 e)
 let proj2 e = In (Proj2 e)
 let annot (e,t) = In (Annot (e,t))
 let lift (e,n) = In (Lift (e,n))
+let meta i = In (Meta i)
 
 
 let into f = In f
@@ -84,10 +92,8 @@ let bind x = top_down_depth (fun d -> function
   | x -> x
 )
 
-let bind_all = top_down (function
-  | Pi (t,(x,e)) -> Pi (t,(x,bind x e))
-  | Sigma (t,(x,e)) -> Sigma (t,(x,bind x e))
-  | Lam (x,e) -> Lam (x,bind x e)
+let bind_all = bottom_up (function
+  | Bind (b,(x,e)) -> Bind (b,(x,bind x e))
   | x -> x
 )
 
@@ -97,15 +103,16 @@ let instantiate t = top_down_depth (fun d -> function
 ) 
 
 
-let freshen x = r := !r + 1; x ^ Int.to_string !r
+let freshen x = r := !r + 1; x ^ "@" ^ Int.to_string !r
+let reset_var_stream () = r := 0
 
 let unbind (x,e) = let x' = freshen x in (x',instantiate (F x') e)
 
 
 let free_in x = fold (function
   | F y when equal_var x y -> true
-  | Lam (_,e) -> e
-  | Pi (t,(_,e)) | Sigma (t,(_,e)) -> t || e
+  | Bind ((Pi t | Sigma t | ALam t),(_,e)) -> t || e
+  | Bind (Lam, (_,e)) -> e
   | Pair (e1,e2) | App (e1,e2) | Annot (e1,e2) -> e1 || e2
   | Proj1 e | Proj2 e -> e
   | Lift (e,_) -> e
@@ -113,9 +120,7 @@ let free_in x = fold (function
 )
 
 let unbind_all = top_down (function
-  | Pi (t,(x,e)) -> if free_in x e then Pi (t,unbind (x,e)) else Pi (t, (x,instantiate (F x) e))
-  | Sigma (t,(x,e)) -> if free_in x e then Sigma (t,unbind (x,e)) else Sigma (t, (x,instantiate (F x) e))
-  | Lam (x,e) -> if free_in x e then Lam (unbind (x,e)) else Lam (x,instantiate (F x) e)
+  | Bind (b,(x,e)) -> if free_in x e then Bind (b,unbind (x,e)) else Bind (b,(x,instantiate (F x) e))
   | x -> x
 )
 
@@ -125,23 +130,25 @@ let pretty ast =
   let rec pretty ast = 
     match out ast with
       | B _ -> failwith "Should never print bound vars"
+      | Meta _ -> failwith "Should never print metavars"
       | F x -> x
-      | Pi (t,(x,e)) ->
+      | Bind (Pi t,(x,e)) ->
         if free_in x e then sprintf "[%s : %s] -> %s" x (pretty t) (pretty e) else
-        let t' = (match out t with Pi _ -> paren (pretty t) | _ -> pretty t) in
+        let t' = (match out t with (Bind (Pi _,_)) -> paren (pretty t) | _ -> pretty t) in
         sprintf "%s -> %s" t' (pretty e)
-      | Sigma (t,(x,e)) ->
-        if free_in x e then sprintf "(%s : %s) * %s" x (pretty t) (pretty e) else
-        let t' = (match out t with Pi _ | Sigma _ -> paren (pretty t) | _ -> pretty t) in
+      | Bind (Sigma t,(x,e)) ->
+        if free_in x e then sprintf "[%s : %s] * %s" x (pretty t) (pretty e) else
+        let t' = (match out t with (Bind ((Pi _ | Sigma _),_)) -> paren (pretty t) | _ -> pretty t) in
         sprintf "%s * %s" t' (pretty e)
       | App (e1,e2) ->
         begin
         match out e1,out e2 with
-          | _,App _ | _, Lam _ | _, Pi _ | _, Sigma _ -> sprintf "%s (%s)" (pretty e1) (pretty e2)
-          | Lam _,_ | Pi _,_ -> sprintf "(%s) %s" (pretty e1) (pretty e2)
+          | _,App _ | _, Bind (Lam,_) | _, Bind (Pi _,_) | _, Bind (Sigma _,_) -> sprintf "%s (%s)" (pretty e1) (pretty e2)
+          | Bind (Lam,_),_ | Bind (Pi _,_),_ -> sprintf "(%s) %s" (pretty e1) (pretty e2)
           | _ -> sprintf "%s %s" (pretty e1) (pretty e2)
         end
-      | Lam (x,e) -> sprintf "\\[%s] %s" x (pretty e)
+      | Bind (Lam, (x,e)) -> sprintf "\\[%s] %s" x (pretty e)
+      | Bind (ALam t,(x,e)) -> sprintf "\\[%s : %s] %s" x (pretty t) (pretty e)
       | Pair (e1,e2) -> sprintf "(%s , %s)" (pretty e1) (pretty e2)
       | Proj1 e -> sprintf "%s.1" (pretty e)
       | Proj2 e -> sprintf "%s.2" (pretty e)
