@@ -28,4 +28,35 @@ let sym : [A : Type] → [x y : A] → Id A x y → Id A y x =
 let trans : [A : Type] → [x y z : A] → Id A x y → Id A y z → Id A x z =
 λ[A x y z x≡y y≡z P Px] y≡z P (x≡y P Px)
 
-let _ : Id^1 ⊤ id id = refl^1 ⊤ id
+let cong : [A B : Type] → [f : A → B] → [x y : A] → Id A x y → Id B (f x) (f y) =
+λ[A B f x y x≡y] x≡y^1 (λ[z] Id B (f x) (f z)) (refl B (f x))
+
+let ℕ = [A : Type] → (A → A) → A → A
+let Nat = ℕ
+
+let Z : ℕ =
+λ[_ _ z] z
+
+let S : ℕ → ℕ =
+λ[n A s z] s (n A s z)
+
+postulate
+  ℕ-ind : [n : ℕ] → [P : ℕ → Type] → P Z → ([m : ℕ] → P m → P (S m)) → P n
+
+let Nat-ind = ℕ-ind
+
+let add : ℕ → ℕ → ℕ =
+λ[m n] m^1 ℕ S n
+
+let mul : ℕ → ℕ → ℕ =
+λ[m n] m^1 ℕ (add n) Z
+
+let exp : ℕ → ℕ → ℕ =
+λ[m n] n^1 ℕ (mul m) (S Z)
+
+let 1+1≡2 : Id^2 ℕ (add (S Z) (S Z)) (S (S Z)) = refl^2 ℕ (S (S Z))
+
+let add-id-l : [n : ℕ] → Id^2 ℕ (add Z n) n =
+λ[n] refl^2 ℕ n
+
+
