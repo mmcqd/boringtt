@@ -54,7 +54,7 @@ let rec beta ((s,g) as c) ast =
       begin
       match out (beta c e) with
         | Pair (_,e2) -> mark_as e2 @@ beta c e2
-        | e' -> mark_as ast @@ proj1 (into e')
+        | e' -> mark_as ast @@ proj2 (into e')
       end
     | Bind (Pi t,(x,e)) -> 
       let (x',e') = unbind (x,e) in
@@ -65,11 +65,13 @@ let rec beta ((s,g) as c) ast =
     | Annot (e,_) -> mark_as e @@ beta c e
     | _ -> ast
 
-let beta s = beta (s,Context.empty)
 
-let beta_equal s e1 e2 = equal_ast (beta s e1) (beta s e2)
-
-(* let eta = bottom_up (function
-  | Bind (Lam, (_,In (App (e,In (B 0))))) -> out e
+let eta = bottom_up (function
+  | Bind (Lam, (_,In (App (e,In (B 0,_)),_))) -> out e
+  | Pair (In (Proj1 x,_), In (Proj2 y, _)) when equal_ast x y -> out y 
   | x -> x
-) *)
+)
+
+let beta s x = beta (s,Context.empty) x
+
+let beta_equal s e1 e2 = equal_ast (eta @@ beta s e1) (eta @@ beta s e2)

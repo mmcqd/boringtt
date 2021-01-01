@@ -26,8 +26,8 @@ let run_stm s = reset_var_stream (); function
   | Eval e ->
     let e = bind_all e in
     let t = synthtype s e in 
-    printf "_ : %s\n" (pretty @@ beta s t);
-    printf "_ = %s\n\n" (pretty @@ beta s e);
+    printf "_ : %s\n" (pretty @@ eta @@ beta s t);
+    printf "_ = %s\n\n" (pretty @@ eta @@ beta s e);
     s
   | Decl (x,e) -> 
     let e = bind_all e in
@@ -47,7 +47,7 @@ let rec repl s =
   let txt = Stdlib.read_line () in
   if String.equal txt "" then repl s;
   try repl @@ List.fold (parse txt) ~init:s ~f:run_stm with 
-    | TypeError e  -> printf "Type Error: %s\n" e;repl s
+    | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e;repl s
     | Unsolved e   -> printf "Unsolved Meta-var : %s\n" e; repl s
     | ParseError e -> printf "Parse Error: %s\n" e; repl s
 
@@ -65,6 +65,6 @@ let _ : unit =
   if Array.length args = 1 then repl Context.empty;
   let s = parse_file args.(1) in
   try repl @@ List.fold s ~init:Context.empty ~f:run_stm with 
-      | TypeError e -> printf "Type Error: %s\n" e
+      | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e
       | Unsolved e  -> printf "Unsolved Meta-var : %s\n" e
       | ParseError e -> printf "Parse Error: %s\n" e

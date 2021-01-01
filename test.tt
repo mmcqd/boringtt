@@ -1,5 +1,6 @@
 postulate ⊤ : Type
 postulate ⟨⟩ : ⊤
+let <> : ⊤ = ⟨⟩
 
 let id : [A : Type] → A → A =
 λ[_ x] x
@@ -49,7 +50,7 @@ postulate
       → C M N P
 
 
-let tt≢ff : Id^3 Bool^2 tt ff → ⊥ =
+let tt≢ff : Id^3 Bool^2 tt^2 ff^2 → ⊥ =
 λ[tt≡ff] tt≡ff (λ[b] b Type1 ⊤ ⊥) ⟨⟩
 
 let ⊤≢⊥ : Id^2 Type1 ⊤ ⊥ → ⊥ =
@@ -70,29 +71,28 @@ postulate
 
 postulate
   ℕ-ind-β₁ : [P : ℕ → Type]
-             [base : P Z]
-	           [step : [m : ℕ] → P m → P (S m)]
-	           → Id (P Z) (ℕ-ind Z P base step) base
+              [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (P Z) (ℕ-ind Z P base step) base
 
 postulate
   ℕ-ind-β₂ : [m : ℕ]
-	           [P : ℕ → Type]
-  	         [base : P Z]
-	           [step : [m : ℕ] → P m → P (S m)]
-	           → Id (S m) (ℕ-ind (S m) base step) (step m (ℕ-ind m base step))
+	      [P : ℕ → Type]
+  	      [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (S m) (ℕ-ind (S m) base step) (step m (ℕ-ind m base step))
 
-{-
-let add : ℕ^1 → ℕ → ℕ =
-λ[m n] m ℕ S n
 
-let mul : ℕ^1 → ℕ^1 → ℕ =
-λ[m n] m ℕ (add n) Z
+let add : ℕ → ℕ → ℕ =
+λ[m n A s z] m A s (n A s z)  
 
-let exp : ℕ^1 → ℕ^1 → ℕ =
-λ[m n] n ℕ (mul m) (S Z)
+let mul : ℕ → ℕ → ℕ =
+λ[m n A s z] m A (n A s) z
+
 
 let 1+1≡2 : Id^1 ℕ (add (S Z) (S Z)) (S (S Z)) = refl^1 ℕ (S (S Z))
 
+{-
 let add-id-l : [n : ℕ] → Id^1 ℕ (add Z n) n =
 λ[n] refl^1 ℕ n
 -}
