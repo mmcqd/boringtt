@@ -10,7 +10,7 @@ let assuming _ = ()
 
 let rec sub t1 t2 =
   match out t1,out t2 with
-    | Type i, Type j -> i < j
+    | Type i, Type j  -> i < j
     | Bind (Sigma a,(x,b)), Bind (Sigma a',(x',b')) ->
       let (_,b) = unbind (x,b) in
       let (_,b') = unbind (x',b') in
@@ -22,66 +22,86 @@ let rec sub t1 t2 =
     | _ -> false
 
 
-let rec synth ((g,d) as c) e =
-  match out e with
-    | F x -> (match Context.find g x with | Some t -> t | None -> raise @@ TypeError (sprintf "Unbound variable: %s" x))
-    | Type i -> typ (i + 1)
-    | Bind (ALam t, (x,e)) ->
-      let (x',e') = unbind (x,e) in
-      pi (t,(x,bind x' @@ synth (g ++ (x',t),d) e'))
-    | Bind ((Pi a | Sigma a),(x,b)) -> 
-      let (x,b) = unbind (x,b) in
+
+let resolve_lam_pi_binders (x,e) (y,b) =
+  match y with
+    | "" -> let (x,e) = unbind (x,e) in x,e,instantiate x b
+    | _  -> let (y,b) = unbind (y,b) in y,instantiate y e,b
+
+
+let rec synth ((s,g) as c) ast =
+  match out ast with
+    | F x ->
       begin
-      match out (beta d (synth c a)) with
-        | Type i ->
-          let g' = g ++ (x,a) in
-          begin
-          match out (beta d (synth (g',d) b)) with
-            | Type j -> typ (Int.max i j)
-            | _ -> raise @@ TypeError (sprintf "The term %s must be a Type to appear in a quantifer" (pretty b))
-          end
-        | _ -> raise @@ TypeError (sprintf "The term %s must be a Type to appear in a quantifier" (pretty a))
+      match Context.find g x with
+        | Some t -> t
+        | None ->
+          match Context.find s x with
+            | Some (_,t) -> t
+            | _ -> raise @@ TypeError (sprintf "%s - Unbound variable: %s" (span_str ast) x)
+      end
+    | Lift (x,n) ->
+      begin
+      match Context.find s x with
+        | Some (_,t) -> lift n t
+        | None -> raise @@ TypeError (sprintf "%s - Cannot lift non-toplevel defintion: %s" (span_str ast) x)
       end
     | App (e1,e2) ->
       begin
-      match out (beta d (synth c e1)) with
-        | Bind (Pi a,(x,b)) -> 
-          let (x,b) = unbind (x,b) in
-          check c e2 a; beta (d ++ (x,e2)) b
-        | t -> raise @@ TypeError (sprintf "%s has type %s, it cannot be applied" (pretty e1) (pretty (into t)))
+      match out (beta s (synth c e1)) with
+        | Bind (Pi a, b) -> 
+          let (x,b) = unbind b in
+          check c e2 a; subst e2 x b 
+        | t -> raise @@ TypeError (sprintf "%s - %s has type %s, it cannot be applied" (span_str ast) (pretty e1) (pretty (into t)))
       end
     | Proj1 e ->
       begin
-      match out (beta d (synth c e)) with
-        | Bind (Sigma a,_) -> beta d a
-        | t -> raise @@ TypeError (sprintf "%s has type %s, it cannot be projected from" (pretty e) (pretty (into t)))
+      match out (beta s (synth c e)) with
+        | Bind (Sigma a,_) -> a
+        | t -> raise @@ TypeError (sprintf "%s - %s has type %s, it cannot be projected from" (span_str e) (pretty e) (pretty (into t)))
       end
     | Proj2 e ->
       begin
-      match out (beta d (synth c e)) with
-        | Bind (Sigma _,(x,b)) -> 
-          let (x,b) = unbind (x,b) in 
-          beta (d ++ (x,proj1 e)) b
-        | t -> raise @@ TypeError (sprintf "%s has type %s, it cannot be projected from" (pretty e) (pretty (into t)))
+      match out (beta s (synth c e)) with
+        | Bind (Sigma _,b) -> 
+          let (x,b) = unbind b in 
+          subst (proj1 e) x b
+        | t -> raise @@ TypeError (sprintf "%s - %s has type %s, it cannot be projected from" (span_str e) (pretty e) (pretty (into t)))
       end
-    | Annot (e,t) -> check c e t; beta d t
-    | Lift (e,n) -> lift n (synth c e)
-    | e -> raise @@ TypeError (sprintf "Cannot synthesize a type for %s" (pretty (into e)))
- 
-    and check ((g,d) as c) e t = 
-      assuming (synth c t);
-      match out e,out (beta d t) with
-        | Meta _, t -> raise @@ Unsolved (pretty (into t))
-        | Bind (Lam, (_,e)), Bind (Pi a,(y,b)) ->
-          let (y,b) = unbind (y,b) in
-          let e = instantiate (F y) e in
-          check (g ++ (y,a),d) e b
-        | Pair (e1,e2), Bind (Sigma a,(x,b)) ->
-          let (x,b) = unbind (x,b) in
-          check c e1 a; check (g ++ (x,a),d) e2 (beta (d ++ (x,e1)) b)
-        | _ ->
-          let a = synth c e in 
-          if not @@ (beta_equal d a t || sub (beta d a) (beta d t)) then 
-          raise @@ TypeError (sprintf "Expected %s to have type %s, but it has type %s" (pretty e) (pretty t) (pretty a)) 
+    | Annot (e,t) -> check c e t; t
+    | _ -> raise @@ TypeError (sprintf "%s - Cannot synthesize a type for %s" (span_str ast) (pretty ast))
+  
+  and check ((s,g) as c) e t =
+    assuming @@ is_type c (beta s t);
+    match out @@ e, out @@ beta s t with
+      | Meta _, t -> raise @@ Unsolved (pretty (into t))
+      | Type i, Type j -> if i >= j then raise @@ TypeError (sprintf "%s - Type%i to large to be contained in Type%i" (span_str e) i j)
+      | Bind ((Pi a | Sigma a),b), Type i ->
+        let (x,b) = unbind b in
+        check c a (typ i); check (s,(g ++ (x,a))) b (typ i)
+      | Bind (Lam, (x,e)), Bind (Pi a,(y,b)) ->
+        let x,e,b = resolve_lam_pi_binders (x,e) (y,b) in
+        check (s,g ++ (x,a)) e b
+      | Pair (e1,e2), Bind (Sigma a, b) ->
+        let (x,b) = unbind b in
+        check c e1 a; check c e2 (subst e1 x b)
+      | _ ->
+        let a = synth c e in
+        if not @@ (beta_equal s a t || sub (beta s a) (beta s t)) then
+        raise @@ TypeError (sprintf "%s - Expected %s to have type %s, but it has type %s" (span_str e) (pretty e) (pretty t) (pretty a))
+
+  and is_type (s,g) ast =
+  match out ast with
+    | Type _ -> ()
+    | Bind ((Pi a | Sigma a),b) ->
+      let (x,b) = unbind b in
+      is_type (s,g) a; is_type (s,(g ++ (x,a))) b
+    | _ -> is_type' (beta s @@ synth (s,g) ast)
+  
+  and is_type' ast =
+    match out ast with
+      | Type _ -> ()
+      | _ -> raise @@ TypeError (sprintf "%s - Expected %s to be a type" (span_str ast) (pretty ast))
 
 
+let synthtype s = synth (s,Context.empty)

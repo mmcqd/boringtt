@@ -1,0 +1,10 @@
+postulate T : Type
+postulate <> : T
+
+let Nat : Type1 = [A : Type] -> (A -> A) -> A -> A
+
+let zero : Nat = \[_ s z] z
+let suc : Nat -> Nat = \[m A s z] s (m A s z)
+let Vec : Type -> Nat^1 -> Type = \[A n] n Type (\[x] A * x) T 
+let nil : [A : Type] -> Vec A zero^1 = \[_] <>
+let cons : [A : Type] [n : Nat^1] -> A -> Vec A n -> Vec A (suc^1 n) = \[A n x xs] x , xs

@@ -10,10 +10,11 @@ module T = Parser
 let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' '_' ]+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
-let whitespace = [' ' '\t' '\n']
+let whitespace = [' ' '\t' '\r']
 
 rule initial = parse
   | whitespace+ { initial lexbuf }
+  | '\n' { Lexing.new_line lexbuf; initial lexbuf }
   | '(' { T.L_paren }
   | ')' { T.R_paren }
   | '[' { T.L_square }
@@ -27,7 +28,8 @@ rule initial = parse
   | ".1" { T.DotOne }
   | ".2" { T.DotTwo }
   | "->" | "→" { T.Arrow }
-  | "Type" { T.Type }
+  | "Type" (dec_num as d) { T.Type (Int.of_string d) }
+  | "Type" { T.Type 0 }
   | "let" { T.Let }
   | "postulate" { T.Postulate }
   | "=" { T.Equal }
@@ -40,12 +42,13 @@ rule initial = parse
   | _ as x { failwith ("illegal char: " ^ (Char.to_string x)) }
 
 and comment nesting = parse
+  | '\n' { Lexing.new_line lexbuf; comment nesting lexbuf }
   | "{-" { comment (nesting + 1) lexbuf }
   | "-}" { match nesting - 1 with | 0 -> initial lexbuf | n' -> comment n' lexbuf }
   | eof { failwith "Reached EOF in comment" }
   | _ { comment nesting lexbuf }
 
 and comment_line = parse
-  | '\n' { initial lexbuf }
+  | '\n' { Lexing.new_line lexbuf; initial lexbuf }
   | eof { failwith "Reached EOF in comment" }
   | _ { comment_line lexbuf }
