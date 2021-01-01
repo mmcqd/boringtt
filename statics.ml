@@ -9,18 +9,7 @@ exception CheckFailed of string
 
 let assuming _ = ()
 
-let rec sub t1 t2 =
-  match out t1,out t2 with
-    | Type i, Type j  -> i < j
-    | Bind (Sigma a,(x,b)), Bind (Sigma a',(x',b')) ->
-      let (_,b) = unbind (x,b) in
-      let (_,b') = unbind (x',b') in
-      sub a a' && sub b b'
-    | Bind (Pi a,(x,b)), Bind (Pi a',(x',b')) ->
-      let (_,b) = unbind (x,b) in
-      let (_,b') = unbind (x',b') in
-      sub a' a && sub b b'
-    | _ -> false
+
 
 
 
@@ -70,13 +59,14 @@ let rec synth ((s,g) as c) ast =
         | t -> raise @@ SynthFailed (sprintf "%s - %s has type %s, it cannot be projected from" (span_str e) (pretty e) (pretty (into t)))
       end
     | Annot (e,t) -> (try check c e t; t with CheckFailed e -> raise @@ SynthFailed e)
+    | Meta _ -> raise @@ Unsolved "Unknown Type"
     | _ -> raise @@ SynthFailed (sprintf "%s - Cannot synthesize a type for %s" (span_str ast) (pretty ast))
   
   and check ((s,g) as c) e t =
     assuming @@ is_type c t;
     match out @@ e, out @@ beta s t with
       | Meta _, t -> raise @@ Unsolved (pretty (into t))
-      | Type i, Type j -> if i >= j then raise @@ CheckFailed (sprintf "%s - Type%i to large to be contained in Type%i" (span_str e) i j)
+      | Type i, Type j -> if i >= j then raise @@ CheckFailed (sprintf "%s - Type%i too large to be contained in Type%i" (span_str e) i j)
       | Bind ((Pi a | Sigma a),b), Type i ->
         let (x,b) = unbind b in
         check c a (typ i); check (s,(g ++ (x,a))) b (typ i)
@@ -86,13 +76,11 @@ let rec synth ((s,g) as c) ast =
       | Pair (e1,e2), Bind (Sigma a, b) ->
         let (x,b) = unbind b in
         check c e1 a; check c e2 (subst e1 x b)
-      | _ ->
-        let a = 
-          try synth c e with 
-            | SynthFailed _ -> raise @@ CheckFailed (sprintf "%s - Failed to check %s against type %s" (span_str e) (pretty e) (pretty t))
-         in
-        if not @@ (beta_equal s a t || sub (beta s a) (beta s t)) then
-        raise @@ CheckFailed (sprintf "%s - Expected %s to have type %s, but it has type %s" (span_str e) (pretty e) (pretty t) (pretty a))
+      | _,t' ->
+        let t' = into t' in
+        let a = beta s @@ synth c e in
+        if not @@ sub c a t' then
+        raise @@ CheckFailed (sprintf "%s - Expected %s to have type %s, but it has type %s" (span_str e) (pretty e) (pretty t') (pretty a))
 
   and is_type (s,g) ast =
     match out ast with
@@ -107,5 +95,18 @@ let rec synth ((s,g) as c) ast =
       | Type _ -> ()
       | _ -> raise @@ CheckFailed (sprintf "%s - Expected %s to be a type" (span_str ast) (pretty ast))
 
+
+  and sub c t1 t2 = if beta_equal (fst c) t1 t2 then true else
+    match out t1,out t2 with
+      | Type i, Type j  -> i < j
+      | Bind (Sigma a,(x,b)), Bind (Sigma a',(x',b')) ->
+        let (_,b) = unbind (x,b) in
+        let (_,b') = unbind (x',b') in
+        sub c a a' && sub c b b'
+      | Bind (Pi a,(x,b)), Bind (Pi a',(x',b')) ->
+        let (_,b) = unbind (x,b) in
+        let (_,b') = unbind (x',b') in
+        sub c a' a && sub c b b'
+      | _ -> false
 
 let synthtype s = synth (s,Context.empty)

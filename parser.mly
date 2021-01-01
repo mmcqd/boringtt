@@ -1,16 +1,21 @@
 
 %{
 
+open Core.List
+
 let fresh =
   let r = ref 0 in
   fun () -> r := !r + 1; !r
 
-let arg_fold (xs,e) = Core.List.fold_right xs ~init:e ~f:(fun x e -> Ast.lam (x,e))
+let arg_fold (xs,e) = fold_right xs ~init:e ~f:(fun x e -> Ast.lam (x,e))
 
-let annot_arg_fold c (xs,t,e) = Core.List.fold_right xs ~init:e ~f:(fun x e -> c (t,(x,e)))
+let annot_arg_fold c (xs,t,e) = fold_right xs ~init:e ~f:(fun x e -> c (t,(x,e)))
 
-let multi_annot_arg_fold c (xss,e) = Core.List.fold_right xss ~init:e ~f:(fun (xs,t) e -> annot_arg_fold c (xs,t,e))
+let multi_annot_arg_fold c (xss,e) = fold_right xss ~init:e ~f:(fun (xs,t) e -> annot_arg_fold c (xs,t,e))
   
+let func_syntax (xss,t,e) =
+  let args = concat @@ map ~f:fst xss in
+  Ast.annot (arg_fold (args,e), multi_annot_arg_fold Ast.pi (xss,t))
 
 %}
 
@@ -45,6 +50,7 @@ let square(x) == L_square; ~ = x; R_square; <>
 let stm := 
   | Let; ~ = bound_name; Equal; ~ = m(expr); <Ast.Decl>
   | Let; x = bound_name; Colon; t = m(expr); Equal; e = m(expr); { Ast.Decl (x, Ast.mark_as e @@ Ast.annot (e,t)) } 
+  | Let; x = bound_name; args = nonempty_list(square(annot_args)); Colon; t = m(expr); Equal; e = m(expr); { Ast.Decl (x,func_syntax (args,t,e)) }
   | Postulate; ~ = bound_name; Colon; ~ = m(expr); <Ast.Postulate> 
   | ~ = m(expr); <Ast.Eval>
 

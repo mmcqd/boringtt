@@ -1,0 +1,161 @@
+postulate ⊤ : Type
+postulate ⟨⟩ : ⊤
+let <> : ⊤ = ⟨⟩
+
+let id : [A : Type] → A → A =
+λ[_ x] x
+
+let id [A : Type] [x : A] : A = x
+
+let ⊥ : Type1 = [A : Type] → A 
+
+let ¬ [A : Type] : Type1 = A → ⊥
+
+let Bool : Type1 = [A : Type] → A → A → A
+
+let tt : Bool = λ[_ x y] x
+let ff : Bool = λ[_ x y] y
+
+let ⊎ [A B : Type] : Type1 =
+[C : Type] → (A → C) → (B → C) → C
+
+let inj₁ [A B : Type] [x : A] : ⊎ A B =
+λ[_ l r] l x
+
+let inj₂ [A B : Type] [x : B] : ⊎ A B =
+λ[_ l r] r x
+
+let Id [A : Type] [x y : A] : Type1 =
+[P : A → Type] → P x → P y
+
+let refl [A : Type] [x : A] : Id A x x =
+λ[_ x] x
+
+let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x =
+λ[P] x≡y (λ[z] P z → P x) (refl A x P)
+
+let trans [A : Type] [x y z : A] [x≡y : Id A x y] [y≡z : Id A y z] : Id A x z =
+λ[P Px] y≡z P (x≡y P Px)
+
+let cong [A B : Type] [f : A → B] [x y : A] [x≡y : Id^1 A x y] : Id B (f x) (f y) =
+x≡y (λ[y] Id B (f x) (f y)) (refl B (f x))
+
+let transp [A B : Type] [A≡B : Id^1 Type A B] [a : A] : B =
+A≡B (λ[B] B) a
+
+postulate
+  J : [A : Type] [C : [x y : A] → Id A x y → Type]
+      → ([x : A] → C x x (refl A x))
+      → [M N : A] [P : Id A M N]
+      → C M N P
+
+let tt≢ff : Id^3 Bool^2 tt^2 ff^2 → ⊥ =
+λ[tt≡ff] tt≡ff (λ[b] b Type1 ⊤ ⊥) ⟨⟩
+
+
+let Pointed-Type : Type1 = [x : Type] * x
+
+let Loop [P : Pointed-Type] : Pointed-Type^1 =
+(Id P.1 P.2 P.2 , refl P.1 P.2)
+
+let Pointed-⊤ : Pointed-Type = (⊤ , ⟨⟩)
+
+let pointed≢⊥ [A : Pointed-Type] [A≡⊥ : Id^2 Type1 A.1 ⊥] : ⊥ =
+transp^1 A.1 ⊥ A≡⊥ A.2
+
+let ⊤≢⊥ : Id^2 Type1 ⊤ ⊥ → ⊥ =
+pointed≢⊥ Pointed-⊤
+
+let ℕ : Type1 = [A : Type] → (A → A) → A → A
+let Nat = ℕ
+
+let Z : ℕ =
+λ[_ _ z] z
+
+let S [n : ℕ] : ℕ =
+λ[A s z] s (n A s z)
+
+let Pointed-ℕ : Pointed-Type^1 = ℕ , Z
+
+let ℕ≢⊥ : Id^3 Type2 ℕ ⊥^1 → ⊥^1 =
+pointed≢⊥^1 Pointed-ℕ
+
+
+postulate
+  ℕ-ind : [n : ℕ] [P : ℕ → Type] → P Z → ([m : ℕ] → P m → P (S m)) → P n
+
+postulate
+  ℕ-ind-β₁ : [P : ℕ → Type]
+              [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (P Z) (ℕ-ind Z P base step) base
+
+postulate
+  ℕ-ind-β₂ : [m : ℕ]
+	      [P : ℕ → Type]
+  	      [base : P Z]
+	      [step : [m : ℕ] → P m → P (S m)]
+	      → Id (S m) (ℕ-ind (S m) base step) (step m (ℕ-ind m base step))
+
+
+let add [m n : ℕ] : ℕ =
+λ[A s z] m A s (n A s z)  
+
+let mul [m n : ℕ] : ℕ =
+λ[A s z] m A (n A s) z
+
+
+let 1+1≡2 : Id^1 ℕ (add (S Z) (S Z)) (S (S Z)) = refl^1 ℕ (S (S Z))
+
+let ∞-ℕ [n : ℕ] : [m : ℕ] * Id^1 ℕ m (S n) =
+(S n , refl^1 ℕ (S n))
+
+let curry [A B C : Type] [f : A → B → C] : A * B → C =
+λ[p] f p.1 p.2
+
+let uncurry [A B C : Type] [f : A * B → C] : A → B → C =
+λ[x y] f (x,y)
+
+let Vec [A : Type] [n : ℕ^1] : Type = n Type (λ[x] A * x) ⊤
+
+let vnil [A : Type] : Vec A Z^1 = ⟨⟩
+
+let vcons [A : Type] [n : ℕ^1] [x : A] [xs : Vec A n] : Vec A (S^1 n) = (x , xs)
+
+let ↔ [A B : Type] : Type = (A → B) * (B → A)
+
+let ≃ [A B : Type] : Type1 =
+[f : A → B] * [g : B → A] * ([x : A] → Id A x (g (f x))) * ([y : B] → Id B y (f (g y)))
+
+postulate
+  univalence : [A B : Type] → ≃ A B → Id^1 Type A B
+
+postulate
+  fun-ext : [A B : Type] [f g : A → B] → ([x : A] → Id B (f x) (g x)) → Id (A → B) f g
+
+
+
+let Maybe [A : Type] : Type1 = ⊎ A ⊤
+
+let none [A : Type] : Maybe A = inj₂ A ⊤ ⟨⟩
+
+let some [A : Type] [x : A] : Maybe A = inj₁ A ⊤ x
+
+let maybe [A : Type] [m : Maybe A] [C : Type] [some : A → C] [none : C] : C =
+m C some (λ[_] none)
+
+let Monoid [M : Type] : Type = M * (M → M → M)
+
+let Monoid-Verified [M : Type] : Type1 =
+[unit : M] [join : M → M → M ] *
+      ([a : M] → Id M (join a unit) a) *
+      ([a : M] → Id M (join unit a) a) *
+      ([a b c : M] → Id M (join a (join b c)) (join (join a b) c))
+
+
+let Functor [F : Type → Type] : Type1 =
+[A B : Type] → (A → B) → (F A → F B)
+
+let Id-F : Functor (id^1 Type) =
+λ[A B] id^1 (A → B)
+
