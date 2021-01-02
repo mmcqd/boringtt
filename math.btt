@@ -1,11 +1,7 @@
-postulate ⊤ : Type
-postulate ⟨⟩ : ⊤
-let <> : ⊤ = ⟨⟩
+let ⊤ : Type1 = [A : Type] → A → A
+let ⟨⟩ : ⊤ = λ[_ x] x
 
-let id : [A : Type] → A → A =
-λ[_ x] x
-
-let id [A : Type] [x : A] : A = x
+let id : ⊤ = ⟨⟩
 
 let ⊥ : Type1 = [A : Type] → A 
 
@@ -15,6 +11,7 @@ let Bool : Type1 = [A : Type] → A → A → A
 
 let tt : Bool = λ[_ x y] x
 let ff : Bool = λ[_ x y] y
+
 
 let ⊎ [A B : Type] : Type1 =
 [C : Type] → (A → C) → (B → C) → C
@@ -58,13 +55,13 @@ let Pointed-Type : Type1 = [x : Type] * x
 let Loop [P : Pointed-Type] : Pointed-Type^1 =
 (Id P.1 P.2 P.2 , refl P.1 P.2)
 
-let Pointed-⊤ : Pointed-Type = (⊤ , ⟨⟩)
+let Pointed-⊤ : Pointed-Type^1 = (⊤ , ⟨⟩)
 
 let pointed≢⊥ [A : Pointed-Type] [A≡⊥ : Id^2 Type1 A.1 ⊥] : ⊥ =
 transp^1 A.1 ⊥ A≡⊥ A.2
 
-let ⊤≢⊥ : Id^2 Type1 ⊤ ⊥ → ⊥ =
-pointed≢⊥ Pointed-⊤
+let ⊤≢⊥ : Id^3 Type2 ⊤ ⊥^1 → ⊥^1 =
+pointed≢⊥^1 Pointed-⊤
 
 let ℕ : Type1 = [A : Type] → (A → A) → A → A
 let Nat = ℕ
@@ -116,11 +113,11 @@ let curry [A B C : Type] [f : A → B → C] : A * B → C =
 let uncurry [A B C : Type] [f : A * B → C] : A → B → C =
 λ[x y] f (x,y)
 
-let Vec [A : Type] [n : ℕ^1] : Type = n Type (λ[x] A * x) ⊤
+let Vec [A : Type] [n : ℕ^2] : Type1 = n Type1 (λ[x] A * x) ⊤
 
-let vnil [A : Type] : Vec A Z^1 = ⟨⟩
+let vnil [A : Type] : Vec A Z^2 = ⟨⟩
 
-let vcons [A : Type] [n : ℕ^1] [x : A] [xs : Vec A n] : Vec A (S^1 n) = (x , xs)
+let vcons [A : Type] [n : ℕ^2] [x : A] [xs : Vec A n] : Vec A (S^2 n) = (x , xs)
 
 let ↔ [A B : Type] : Type = (A → B) * (B → A)
 
@@ -135,11 +132,11 @@ postulate
 
 
 
-let Maybe [A : Type] : Type1 = ⊎ A ⊤
+let Maybe [A : Type] : Type2 = ⊎^1 A ⊤
 
-let none [A : Type] : Maybe A = inj₂ A ⊤ ⟨⟩
+let none [A : Type] : Maybe A = inj₂^1 A ⊤ ⟨⟩
 
-let some [A : Type] [x : A] : Maybe A = inj₁ A ⊤ x
+let some [A : Type] [x : A] : Maybe A = inj₁^1 A ⊤ x
 
 let maybe [A : Type] [m : Maybe A] [C : Type] [some : A → C] [none : C] : C =
 m C some (λ[_] none)
@@ -153,9 +150,8 @@ let Monoid-Verified [M : Type] : Type1 =
       ([a b c : M] → Id M (join a (join b c)) (join (join a b) c))
 
 
-let Functor [F : Type → Type] : Type1 =
+let Functor [F : Type → Type1] : Type1 =
 [A B : Type] → (A → B) → (F A → F B)
 
 let Id-F : Functor (id^1 Type) =
 λ[A B] id^1 (A → B)
-
