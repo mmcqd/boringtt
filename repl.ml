@@ -26,8 +26,8 @@ let run_stm s = reset_var_stream (); function
   | Eval e ->
     let e = bind_all e in
     let t = synthtype s e in 
-    printf "_ : %s\n" (pretty @@ eta @@ beta s t);
-    printf "_ = %s\n\n" (pretty @@ eta @@ beta s e);
+    printf "_ : %s\n" (pretty @@ beta s t);
+    printf "_ = %s\n\n" (pretty @@ beta s e);
     s
   | Decl (x,e) -> 
     let e = bind_all e in

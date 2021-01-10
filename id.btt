@@ -1,0 +1,21 @@
+
+
+let T : Type1 = [A : Type] -> A -> A
+let <> : T = λ[_ x] x
+
+let _ : Id T <> <> = refl 
+
+let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x = 
+  J (A;[x y _] Id A y x;[x] refl ;x;y;x≡y)
+
+let trans [A : Type] [x y : A] [x≡y : Id A x y] : [z : A] -> Id A y z -> Id A x z =
+  J(A;[x y _] [z : A] -> Id A y z -> Id A x z;[x] λ[z eq] eq;x;y;x≡y)
+
+let transport [A B : Type] [A≡B : Id Type A B] : A -> B =
+  J(Type;[x y _] x -> y; [x] λ[a] a;A;B;A≡B)
+
+let subst [A : Type] [P : A -> Type] [x y : A] [x≡y : Id A x y] : P x -> P y =
+  J(A;[x y _] P x -> P y;[x] λ[a] a;x;y;x≡y)
+
+let cong [A B : Type] [f : A -> B] [x y : A] [x≡y : Id A x y] : Id B (f x) (f y) =
+  J(A;[x y _] Id B (f x) (f y); [x] refl;x;y;x≡y)

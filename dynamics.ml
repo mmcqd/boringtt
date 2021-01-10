@@ -32,13 +32,13 @@ let rec beta ((s,g) as c) ast =
         | Some (e,_) -> lift n e
         | None -> failwith "Should be precluded by typechecking"
       end
-    | Bind (Lam , (x,e)) -> 
+    | Lam (x,e) -> 
       let (x',e') = unbind (x,e) in 
       mark_as ast @@ lam (x,bind x' (beta c e'))
     | App (e1,e2) ->
       begin
       match out (beta c e1),out (beta c e2) with
-        | Bind (Lam, (x,e)), e2' -> 
+        | Lam (x,e), e2' -> 
           let (x',e') = unbind (x,e) in
           mark_as e2 @@ beta (s,g ++ (x',into e2')) e'
         | e1',e2' -> mark_as ast @@ app (into e1',into e2')
@@ -56,18 +56,28 @@ let rec beta ((s,g) as c) ast =
         | Pair (_,e2) -> mark_as e2 @@ beta c e2
         | e' -> mark_as ast @@ proj2 (into e')
       end
-    | Bind (Pi t,(x,e)) -> 
+    | Pi (t,(x,e)) -> 
       let (x',e') = unbind (x,e) in
       mark_as ast @@ pi (mark_as t @@ beta c t,(x,bind x' (mark_as e @@ beta c e')))
-    | Bind (Sigma t,(x,e)) -> 
+    | Sg (t,(x,e)) -> 
       let (x',e') = unbind (x,e) in
       mark_as ast @@ sigma (mark_as t @@ beta c t,(x,bind x' (mark_as e @@ beta c e')))
     | Annot (e,_) -> mark_as e @@ beta c e
+    | J (t,(x,y,z,e1),(a,e2),m,n,prf) ->
+      begin
+      match out @@ beta c prf with
+        | Refl -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,m)) e2)
+        | prf' ->
+          let (x',y',z',e1) = unbind3 (x,y,z,e1) in
+          let (a',e2) = unbind (a,e2) in
+          mark_as ast @@ j (beta c t,(x,y,z,bind3 (x',y',z') (beta c e1)),(a,bind a' (beta c e2)),beta c m,beta c n,mark_as prf @@ into prf')
+      end
+    | Id (t,m,n) -> mark_as ast @@ id (beta c t,beta c m,beta c n)
     | _ -> ast
 
 
 let eta = bottom_up (function
-  | Bind (Lam, (_,In (App (e,In (B 0,_)),_))) -> out e
+  | Lam (_,In (App (e,In (B 0,_)),_)) -> out e
   | Pair (In (Proj1 x,_), In (Proj2 y, _)) when equal_ast x y -> out y 
   | x -> x
 )

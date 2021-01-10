@@ -7,7 +7,7 @@ module T = Parser
 
 
 
-let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' '_' ]+
+let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' '_' ';' ]+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
 let whitespace = [' ' '\t' '\r']
@@ -25,12 +25,16 @@ rule initial = parse
   | '*' | "×" { T.Star }
   | ',' { T.Comma }
   | '^' { T.Carat }
+  | ';' { T.Semicolon }
   | ".1" { T.DotOne }
   | ".2" { T.DotTwo }
   | "->" | "→" { T.Arrow }
   | "Type" (dec_num as d) { T.Type (Int.of_string d) }
   | "Type" { T.Type 0 }
   | "let" { T.Let }
+  | "Id" { T.Id }
+  | "refl" { T.Refl }
+  | "J" { T.J }
   | "postulate" { T.Postulate }
   | "=" { T.Equal }
   | dec_num as d { T.Dec_const (Int.of_string d) }
