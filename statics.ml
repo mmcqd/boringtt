@@ -99,12 +99,14 @@ let rec synth ((s,g) as c) ast =
         check c t (typ Omega);
         let (x,b) = unbind b in
         check c e1 a; check c e2 (subst e1 x b)
-      | Refl e, Id (a,x,y) ->
+      | Refl r, Id (_,x,y) ->
         check c t (typ Omega);
-        check c x a;
-        check c y a;
         if not @@ beta_equal s x y then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty y));
-        if not @@ beta_equal s x e then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty e));
+        begin
+        match out (beta s r.ast) with
+          | Meta _ -> r.ast <- x
+          | _ -> if not @@ beta_equal s x r.ast then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty e));
+        end
       | _,t' ->
         let t' = into t' in
         let a = beta s @@ synth c e in

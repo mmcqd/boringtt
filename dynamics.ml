@@ -63,17 +63,17 @@ let rec beta ((s,g) as c) ast =
       let (x',e') = unbind (x,e) in
       mark_as ast @@ sigma (mark_as t @@ beta c t,(x,bind x' (mark_as e @@ beta c e')))
     | Annot (e,_) -> mark_as e @@ beta c e
-    | Refl e -> mark_as e @@ refl (beta c e)
+    | Refl {ast=e} -> mark_as ast @@ refl (beta c e)
     | J ((x,y,z,e1),(a,e2),prf) ->
       begin
       match out @@ beta c prf with
-        | Refl e -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,e)) e2)
+        | Refl {ast=e} -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,e)) e2)
         | prf' ->
           let (x',y',z',e1) = unbind3 (x,y,z,e1) in
           let (a',e2) = unbind (a,e2) in
           mark_as ast @@ j ((x,y,z,bind3 (x',y',z') (beta c e1)),(a,bind a' (beta c e2)),mark_as prf @@ into prf')
       end
-    | Id (t,m,n) -> mark_as ast @@ id (beta c t,beta c m,beta c n)
+    | Id (t,m,n) -> mark_as ast @@ id (beta c t,m,n)
     | _ -> ast
 
 

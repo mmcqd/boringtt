@@ -43,7 +43,7 @@ type 'ast astF =
   | Annot of 'ast * 'ast
   | Meta of int
   | Id of ('ast * 'ast * 'ast)
-  | Refl of 'ast
+  | Refl of {mutable ast : 'ast}
   | J of ('ast binder3 * 'ast binder * 'ast)
   [@@deriving map,show,equal]
 
@@ -113,7 +113,7 @@ let annot (e,t) = into (Annot (e,t))
 let meta i = into (Meta i)
 let id x = into (Id x)
 let j x = into (J x)
-let refl x = into (Refl x)
+let refl x = into (Refl {ast = x})
 
 
 let rec fold f ast = ast |> out |> map_astF (fold f) |> f (get_span ast)
@@ -218,7 +218,7 @@ let pretty ast =
       | Lift (x,n) -> sprintf "%s^%i" x n
       | Type (Nat i) -> sprintf "Type%i" i
       | Type Omega -> "TypeOmega"
-      | Refl x -> sprintf "refl %s" (atomic x)
+      | Refl {ast} -> sprintf "refl %s" (atomic ast)
       | Proj1 e -> sprintf "%s.1" (atomic e)
       | Proj2 e -> sprintf "%s.2" (atomic e)
       | _ -> sprintf "(%s)" (expr ast)

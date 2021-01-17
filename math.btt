@@ -24,7 +24,7 @@ let inj₂ [A B : Type] [x : B] : ⊎ A B =
 
 let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x =
   match x≡y at x y _ => Id A y x with
-    | refl x => refl x
+    | refl x => refl _
 
 
 let trans [A : Type] [x y z : A] [x≡y : Id A x y] [y≡z : Id A y z] : Id A x z =
@@ -44,18 +44,18 @@ let subst [A : Type] [P : A -> Type] [x y : A] [x≡y : Id A x y] : P x -> P y =
 
 let cong [A B : Type] [f : A -> B] [x y : A] [x≡y : Id A x y] : Id B (f x) (f y) =
   match x≡y at x y _ => Id B (f x) (f y) with
-    | refl x => refl (f x)
+    | refl x => refl _
 
 
 let coerce-id [A B : Type] [A≡B : Id Type A B] [x y : A] [x≡y : Id A x y] : Id B (coerce A B A≡B x) (coerce A B A≡B y) =
   match x≡y at x y _ => Id B (coerce A B A≡B x) (coerce A B A≡B y) with
-    | refl x => refl (coerce A B A≡B x)
+    | refl x => refl _
 
 
 let tt≢ff [tt≡ff : Id Bool^2 tt^2 ff^2] : ⊥ =
 subst^3 Bool^2 (λ b => b Type1 ⊤ ⊥) tt^2 ff^2 tt≡ff ⟨⟩
 
-let Pointed-Type : Type1 = [x : Type] * x
+let Pointed-Type : Type1 = [x : Type] × x
 
 let Pointed-Type1 : Pointed-Type^2 = (Type1,Type)
 
@@ -122,10 +122,10 @@ let mul [m n : ℕ] : ℕ =
 λ A s z => m A (n A s) z
 
 
-let 1+1≡2 : Id ℕ (add (S Z) (S Z)) (S (S Z)) = refl (S (S Z))
+let 1+1≡2 : Id ℕ (add (S Z) (S Z)) (S (S Z)) = refl _
 
-let ∞-ℕ [n : ℕ] : [m : ℕ] * Id ℕ m (S n) =
-(S n , refl (S n))
+let ∞-ℕ [n : ℕ] : [m : ℕ] × Id ℕ m (S n) =
+(S n , refl _)
 
 let curry [A B C : Type] [f : A -> B -> C] : A × B -> C =
 λ p => f p.1 p.2
@@ -136,26 +136,25 @@ let d-curry [A B : Type] [P : A -> B -> Type] [f : [x : A] [y : B] -> P x y] : [
 let uncurry [A B C : Type] [f : A × B -> C] : A -> B -> C =
 λ x y => f (x,y)
 
-let d-uncurry [A B : Type] [P : A * B -> Type] [f : [z : A × B] -> P z] : [x : A] [y : B] -> (uncurry^1 A B Type P x y) =
+let d-uncurry [A B : Type] [P : A × B -> Type] [f : [z : A × B] -> P z] : [x : A] [y : B] -> (uncurry^1 A B Type P x y) =
 λ x y => f (x,y)
 
-let Vec [A : Type] [n : ℕ^2] : Type1 = n Type1 (λ x => A * x) ⊤
+let Vec [A : Type] [n : ℕ^2] : Type1 = n Type1 (λ x => A × x) ⊤
 
 let vnil [A : Type] : Vec A Z^2 = ⟨⟩
 
 let vcons [A : Type] [n : ℕ^2] [x : A] [xs : Vec A n] : Vec A (S^2 n) = (x , xs)
 
-let ⇔ [A B : Type] : Type = (A -> B) * (B -> A)
+let ⇔ [A B : Type] : Type = (A -> B) × (B -> A)
 
 let ≃ [A B : Type] : Type1 =
-[f : A -> B] * [g : B -> A] * ([x : A] -> Id A x (g (f x))) * ([y : B] -> Id B y (f (g y)))
+[f : A -> B] × [g : B -> A] × ([x : A] -> Id A x (g (f x))) × ([y : B] -> Id B y (f (g y)))
 
 postulate
   univalence : [A B : Type] -> ≃ A B -> Id Type A B
 
 postulate
   fun-ext : [A B : Type] [f g : A -> B] -> ([x : A] -> Id B (f x) (g x)) -> Id (A -> B) f g
-
 
 
 let Maybe [A : Type] : Type2 = ⊎^1 A ⊤
