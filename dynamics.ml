@@ -9,7 +9,7 @@ let subst e x = bottom_up (function
 )
 
 let lift n = top_down (function
-  | Type i -> Type (i + n)
+  | Type i -> Type (level_plus i (Nat n))
   | Lift (x,i) -> Lift (x,i + n)
   | x -> x
 )
@@ -63,14 +63,15 @@ let rec beta ((s,g) as c) ast =
       let (x',e') = unbind (x,e) in
       mark_as ast @@ sigma (mark_as t @@ beta c t,(x,bind x' (mark_as e @@ beta c e')))
     | Annot (e,_) -> mark_as e @@ beta c e
-    | J (t,(x,y,z,e1),(a,e2),m,n,prf) ->
+    | Refl e -> mark_as e @@ refl (beta c e)
+    | J ((x,y,z,e1),(a,e2),prf) ->
       begin
       match out @@ beta c prf with
-        | Refl -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,m)) e2)
+        | Refl e -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,e)) e2)
         | prf' ->
           let (x',y',z',e1) = unbind3 (x,y,z,e1) in
           let (a',e2) = unbind (a,e2) in
-          mark_as ast @@ j (beta c t,(x,y,z,bind3 (x',y',z') (beta c e1)),(a,bind a' (beta c e2)),beta c m,beta c n,mark_as prf @@ into prf')
+          mark_as ast @@ j ((x,y,z,bind3 (x',y',z') (beta c e1)),(a,bind a' (beta c e2)),mark_as prf @@ into prf')
       end
     | Id (t,m,n) -> mark_as ast @@ id (beta c t,beta c m,beta c n)
     | _ -> ast

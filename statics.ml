@@ -64,27 +64,26 @@ let rec synth ((s,g) as c) ast =
         | t -> raise @@ SynthFailed (sprintf "%s - %s has type %s, it cannot be projected from" (span_str e) (pretty e) (pretty (into t)))
       end
     | Annot (e,t) -> (try check c e t; t with CheckFailed e -> raise @@ SynthFailed e)
-    | J (t,a,b,m,n,prf) ->
+    | J (a,b,prf) ->
       let (x,y,z,e1) = unbind3 a in
       let (a,e2) = unbind b in
-      is_type c (beta s t);
-      check c m t;
-      check c n t;
-      check c prf (id (t,m,n));
-      is_type (s,g ++ (x,t) ++ (y,t) ++ (z,id (t,f x,f y))) e1;
-      check (s,g ++ (a,t)) e2 (e1 |> subst (f a) x |> subst (f a) y |> subst refl z);
-      e1 |> subst m x |> subst n y |> subst prf z
-
+      begin
+      match out (beta s (synth c prf)) with
+        | Id (t,m,n) ->
+          check (s,g ++ (x,t) ++ (y,t) ++ (z,id (t,f x,f y))) e1 (typ Omega);
+          check (s,g ++ (a,t)) e2 (e1 |> subst (f a) x |> subst (f a) y |> subst (refl m) z);
+          e1 |> subst m x |> subst n y |> subst prf z
+        | t -> raise @@ SynthFailed (sprintf "%s - %s has type %s, it is not an equality" (span_str prf) (pretty prf) (pretty (into t)))
+      end
     | Meta _ -> raise @@ Unsolved "Unknown Type"
     | _ -> raise @@ SynthFailed (sprintf "%s - Cannot synthesize a type for %s" (span_str ast) (pretty ast))
   
   and check ((s,g) as c) e t =
     (* print_endline ("CHECK "^ pretty e ^ " AT " ^ pretty t); *)
     let t = beta s t in
-    is_type c t;
     match out @@ e, out @@ t with
       | Meta _, t -> raise @@ Unsolved (pretty (into t))
-      | Type i, Type j -> if i >= j then raise @@ CheckFailed (sprintf "%s - Type%i too large to be contained in Type%i" (span_str e) i j)
+      | Type i, Type j -> if not (level_lt i j) then raise @@ CheckFailed (sprintf "%s - %s too large to be contained in %s" (span_str e) (pretty e) (pretty t))
       | (Pi (a,b) | Sg (a,b)), Type i ->
         let (x,b) = unbind b in
         check c a (typ i); check (s,(g ++ (x,a))) b (typ i)
@@ -93,39 +92,29 @@ let rec synth ((s,g) as c) ast =
         check c m t;
         check c n t 
       | Lam (x,e), Pi (a,(y,b)) ->
+        check c t (typ Omega);
         let x,e,b = resolve_lam_pi_binders (x,e) (y,b) in
         check (s,g ++ (x,a)) e b
       | Pair (e1,e2), Sg (a, b) ->
+        check c t (typ Omega);
         let (x,b) = unbind b in
         check c e1 a; check c e2 (subst e1 x b)
-      | Refl, Id (a,x,y) ->
+      | Refl e, Id (a,x,y) ->
+        check c t (typ Omega);
         check c x a;
         check c y a;
-        if not @@ beta_equal s x y then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty y))
+        if not @@ beta_equal s x y then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty y));
+        if not @@ beta_equal s x e then raise @@ CheckFailed (sprintf "%s - %s and %s are not equal, they cannot be identified" (span_str e) (pretty x) (pretty e));
       | _,t' ->
         let t' = into t' in
         let a = beta s @@ synth c e in
         if not @@ sub c a t' then
         raise @@ CheckFailed (sprintf "%s - Expected %s to have type %s, but it has type %s" (span_str e) (pretty e) (pretty t') (pretty a))
 
-  and is_type (s,g) ast =
-    match out ast with
-      | Type _ -> ()
-      | Pi (a,b) | Sg (a,b) ->
-        let (x,b) = unbind b in
-        is_type (s,g) a; is_type (s,(g ++ (x,a))) b
-      | Id (t,_,_) -> is_type (s,g) t
-      | _ -> is_type' (beta s @@ synth (s,g) ast)
-  
-  and is_type' ast =
-    match out ast with
-      | Type _ -> ()
-      | _ -> raise @@ CheckFailed (sprintf "%s - Expected %s to be a type" (span_str ast) (pretty ast))
-
 
   and sub c t1 t2 = if beta_equal (fst c) t1 t2 then true else
     match out t1,out t2 with
-      | Type i, Type j  -> i < j
+      | Type i, Type j  -> level_lt i j
       | Sg (a,(x,b)), Sg (a',(x',b')) ->
         let (_,b) = unbind (x,b) in
         let (_,b') = unbind (x',b') in
@@ -134,6 +123,7 @@ let rec synth ((s,g) as c) ast =
         let (_,b) = unbind (x,b) in
         let (_,b') = unbind (x',b') in
         sub c a' a && sub c b b'
+      | Id (a,_,_), Id (a',_,_) -> sub c a a'
       | _ -> false
 
 let synthtype s = synth (s,Context.empty)

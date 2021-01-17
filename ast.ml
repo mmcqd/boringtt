@@ -4,12 +4,6 @@ open Core
 let r = ref 0
 
 
-
-type z = Z
-type _ s = S
-
-
-
 type 'a binder = string * 'a
   [@@deriving map,show,equal]
 type 'a binder2 = string * string * 'a
@@ -17,12 +11,28 @@ type 'a binder2 = string * string * 'a
 type 'a binder3 = string * string * string * 'a
   [@@deriving map,show,equal]
 
+type level = 
+  | Omega
+  | Nat of int
+  [@@deriving equal,show]
+
+let level_lt x y =
+  match x,y with
+    | Nat i,Nat j -> i < j
+    | Nat _,Omega -> true
+    | Omega,_ -> false
+
+let level_plus x y =
+  match x,y with
+    | Nat i, Nat j -> Nat (i + j)
+    | _ -> Omega
+
 
 type 'ast astF =
   | F of string
   | B of int
   | Lift of (string * int)
-  | Type of int
+  | Type of level
   | Pi of 'ast * 'ast binder
   | Sg of 'ast * 'ast binder
   | Lam of 'ast binder
@@ -33,8 +43,8 @@ type 'ast astF =
   | Annot of 'ast * 'ast
   | Meta of int
   | Id of ('ast * 'ast * 'ast)
-  | Refl
-  | J of ('ast * 'ast binder3 * 'ast binder * 'ast * 'ast * 'ast)
+  | Refl of 'ast
+  | J of ('ast binder3 * 'ast binder * 'ast)
   [@@deriving map,show,equal]
 
 
@@ -42,7 +52,7 @@ let map_depth_astF d f = function
   | Pi (b,(x,e)) -> Pi ((f d) b,(x,f (d+1) e))
   | Sg (b,(x,e)) -> Sg ((f d) b,(x,f (d+1) e))
   | Lam (x,e) ->  Lam (x,f (d+1) e)
-  | J (t,(x,y,eq,c),(z,b),m,n,prf) -> J (f d t,(x,y,eq,f (d+3) c),(z,f (d+1) b),f d m,f d n,f d prf)
+  | J ((x,y,eq,c),(z,b),prf) -> J ((x,y,eq,f (d+3) c),(z,f (d+1) b),f d prf)
   | x -> map_astF (f d) x 
 
 
@@ -103,7 +113,7 @@ let annot (e,t) = into (Annot (e,t))
 let meta i = into (Meta i)
 let id x = into (Id x)
 let j x = into (J x)
-let refl = into Refl
+let refl x = into (Refl x)
 
 
 let rec fold f ast = ast |> out |> map_astF (fold f) |> f (get_span ast)
@@ -151,7 +161,7 @@ let bind_all = bottom_up (function
   | Pi (b,(x,e)) -> Pi (b,(x,bind x e))
   | Sg (b,(x,e)) -> Sg (b,(x,bind x e))
   | Lam (x,e) -> Lam (x,bind x e)
-  | J (t,(a,b,c,e1),(d,e2),m,n,prf) -> J (t,(a,b,c,bind3 (a,b,c) e1),(d,bind d e2),m,n,prf)
+  | J ((a,b,c,e1),(d,e2),prf) -> J ((a,b,c,bind3 (a,b,c) e1),(d,bind d e2),prf)
   | x -> x
 )
 
@@ -183,7 +193,7 @@ let free_in x = fold (fun _ -> function
   | Lam (_,e) -> e
   | Pair (e1,e2) | App (e1,e2) | Annot (e1,e2) -> e1 || e2
   | Proj1 e | Proj2 e -> e
-  | J (t,(_,_,_,e1),(_,e2),m,n,eq) -> t || e1 || e2 || m || n || eq
+  | J ((_,_,_,e1),(_,e2),eq) -> e1 || e2 || eq
   | Id (t,m,n) -> t || m || n
   | _ -> false
 )
@@ -192,7 +202,7 @@ let unbind_all = top_down (function
   | Pi (b,(x,e)) -> Pi (b,unbind ~fresh:[free_in x e] (x,e)) 
   | Sg (b,(x,e)) -> Sg (b,unbind ~fresh:[free_in x e] (x,e))
   | Lam (x,e) -> Lam (unbind ~fresh:[free_in x e] (x,e))
-  | J (t,(a,b,c,e1),(d,e2),m,n,prf) -> J (t,unbind3 ~fresh:([free_in a e1;free_in b e1;free_in c e1]) (a,b,c,e1),unbind ~fresh:[free_in d e2] (d,e2),m,n,prf)
+  | J ((a,b,c,e1),(d,e2),prf) -> J (unbind3 ~fresh:([free_in a e1;free_in b e1;free_in c e1]) (a,b,c,e1),unbind ~fresh:[free_in d e2] (d,e2),prf)
   | x -> x
 )
 
@@ -202,12 +212,13 @@ let pretty ast =
   let rec atomic ast =
     match out ast with
       | B _ -> failwith "Should never print bound vars"
-      | Annot _ -> failwith "Annotations should always be reduced away"
+      | Annot (e,t) -> sprintf "(%s : %s)" (expr e) (expr t)
       | F x -> x
       | Meta i -> sprintf "_%i" i
       | Lift (x,n) -> sprintf "%s^%i" x n
-      | Type i -> sprintf "Type%i" i
-      | Refl -> "refl"
+      | Type (Nat i) -> sprintf "Type%i" i
+      | Type Omega -> "TypeOmega"
+      | Refl x -> sprintf "refl %s" (atomic x)
       | Proj1 e -> sprintf "%s.1" (atomic e)
       | Proj2 e -> sprintf "%s.2" (atomic e)
       | _ -> sprintf "(%s)" (expr ast)
@@ -215,7 +226,7 @@ let pretty ast =
   and expr ast =
     match out ast with
       | App (e1,e2) -> sprintf "%s %s" (atomic e1) (atomic e2)
-      | Lam (x,e) -> sprintf "\\[%s] %s" x (expr e)
+      | Lam (x,e) -> sprintf "fn %s => %s" x (expr e)
       | Id (t,m,n) -> sprintf "Id %s %s %s" (atomic t) (atomic m) (atomic n)
       | Pi (t,(x,e)) ->
         if free_in x e then sprintf "[%s : %s] -> %s" x (expr t) (expr e) else
@@ -224,40 +235,6 @@ let pretty ast =
         if free_in x e then sprintf "[%s : %s] * %s" x (expr t) (expr e) else
         sprintf "%s * %s" (atomic t) (expr e)
       | Pair (e1,e2) -> sprintf "%s , %s" (expr e1) (expr e2)
-      | J (t,(a,b,c,e1),(d,e2),m,n,p) -> sprintf "J (%s;[%s %s %s] %s;[%s] %s;%s;%s;%s)" (expr t) a b c (expr e1) d (expr e2) (expr m) (expr n) (expr p)
+      | J ((a,b,c,e1),(d,e2),p) -> sprintf "match %s at %s %s %s => %s with refl %s => %s" (expr p) a b c (expr e1) d (expr e2)
       | _ -> atomic ast
   in ast |> unbind_all |> expr
-
-(*
-  let rec pretty ast = 
-    match out ast with
-      | B _ -> failwith "Should never print bound vars"
-      | Meta i -> sprintf "_%i" i
-      | F x -> x
-      | Lift (x,n) -> sprintf "%s^%i" x n
-      | Pi (t,(x,e)) ->
-        if free_in x e then sprintf "[%s : %s] -> %s" x (pretty t) (pretty e) else
-        let t' = (match out t with Pi _ -> paren (pretty t) | _ -> pretty t) in
-        sprintf "%s -> %s" t' (pretty e)
-      | Sg (t,(x,e)) ->
-        if free_in x e then sprintf "[%s : %s] * %s" x (pretty t) (pretty e) else
-        let t' = (match out t with (Pi _ | Sg _) -> paren (pretty t) | _ -> pretty t) in
-        sprintf "%s * %s" t' (pretty e)
-      | App (e1,e2) ->
-        begin
-        match out e1,out e2 with
-          | _,App _ | _, Lam _ | _, Pi _ | _, Sg _ -> sprintf "%s (%s)" (pretty e1) (pretty e2)
-          | Lam _,_ -> sprintf "(%s) %s" (pretty e1) (pretty e2)
-          | _ -> sprintf "%s %s" (pretty e1) (pretty e2)
-        end
-      | Lam (x,e) -> sprintf "\\[%s] %s" x (pretty e)
-      | Pair (e1,e2) -> sprintf "(%s , %s)" (pretty e1) (pretty e2)
-      | Proj1 e -> sprintf "%s.1" (pretty e)
-      | Proj2 e -> sprintf "%s.2" (pretty e)
-      | Type i -> "Type" ^ Int.to_string i
-      | Annot (e,t) -> sprintf "(%s : %s)" (pretty e) (pretty t)
-      | Id (t,x,y) -> sprintf "Id %s %s %s" (pretty t) (pretty x) (pretty y)
-      | Refl -> "refl"
-      | J (t,(a,b,c,e1),(d,e2),m,n,p) -> sprintf "J (%s;[%s %s %s] %s;[%s] %s;%s;%s;%s)" (pretty t) a b c (pretty e1) d (pretty e2) (pretty m) (pretty n) (pretty p)
-  in ast |> unbind_all |> pretty
-*)

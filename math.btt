@@ -1,5 +1,5 @@
 let ⊤ : Type1 = [A : Type] → A → A
-let ⟨⟩ : ⊤ = λ[_ x] x
+let ⟨⟩ : ⊤ = λ _ x => x
 
 let id : ⊤ = ⟨⟩
 
@@ -9,47 +9,58 @@ let ¬ [A : Type] : Type1 = A → ⊥
 
 let Bool : Type1 = [A : Type] → A → A → A
 
-let tt : Bool = λ[_ x y] x
-let ff : Bool = λ[_ x y] y
-
+let tt : Bool = λ _ x y => x
+let ff : Bool = λ _ x y => y
 
 let ⊎ [A B : Type] : Type1 =
 [C : Type] → (A → C) → (B → C) → C
 
 let inj₁ [A B : Type] [x : A] : ⊎ A B =
-λ[_ l r] l x
+λ _ l r => l x
 
 let inj₂ [A B : Type] [x : B] : ⊎ A B =
-λ[_ l r] r x
+λ _ l r => r x
 
-let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x = 
-  J (A;[x y _] Id A y x;[x] refl ;x;y;x≡y)
+
+let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x =
+  match x≡y at x y _ => Id A y x with
+    | refl x => refl x
+
 
 let trans [A : Type] [x y z : A] [x≡y : Id A x y] [y≡z : Id A y z] : Id A x z =
-  (J(A;[x y _] Id A y z -> Id A x z;[x] λ[eq] eq;x;y;x≡y)) y≡z
+  (match x≡y at x y _ => Id A y z -> Id A x z with
+     | refl _ => λ eq => eq) y≡z
 
 
 let coerce [A B : Type] [A≡B : Id Type A B] : A -> B =
-  J(Type;[x y _] x -> y; [x] λ[a] a;A;B;A≡B)
+  match A≡B at x y _ => x -> y with
+    | refl _ => λ a => a
+
 
 let subst [A : Type] [P : A -> Type] [x y : A] [x≡y : Id A x y] : P x -> P y =
-  J(A;[x y _] P x -> P y;[x] λ[a] a;x;y;x≡y)
+  match x≡y at x y _ => P x -> P y with
+    | refl _ => λ a => a
+
 
 let cong [A B : Type] [f : A -> B] [x y : A] [x≡y : Id A x y] : Id B (f x) (f y) =
-  J(A;[x y _] Id B (f x) (f y); [x] refl;x;y;x≡y)
+  match x≡y at x y _ => Id B (f x) (f y) with
+    | refl x => refl (f x)
+
 
 let coerce-id [A B : Type] [A≡B : Id Type A B] [x y : A] [x≡y : Id A x y] : Id B (coerce A B A≡B x) (coerce A B A≡B y) =
-  J(A;[x y _] Id B (coerce A B A≡B x) (coerce A B A≡B y);[x] refl;x;y;x≡y)
+  match x≡y at x y _ => Id B (coerce A B A≡B x) (coerce A B A≡B y) with
+    | refl x => refl (coerce A B A≡B x)
 
 
 let tt≢ff [tt≡ff : Id Bool^2 tt^2 ff^2] : ⊥ =
-subst^3 Bool^2 (λ[b] b Type1 ⊤ ⊥) tt^2 ff^2 tt≡ff ⟨⟩
+subst^3 Bool^2 (λ b => b Type1 ⊤ ⊥) tt^2 ff^2 tt≡ff ⟨⟩
 
 let Pointed-Type : Type1 = [x : Type] * x
 
+let Pointed-Type1 : Pointed-Type^2 = (Type1,Type)
 
 let Loop [P : Pointed-Type] : Pointed-Type =
-(Id P.1 P.2 P.2 , refl)
+(Id P.1 P.2 P.2 , refl P.2)
 
 let Pointed-⊤ : Pointed-Type^1 = (⊤ , ⟨⟩)
 
@@ -65,10 +76,10 @@ let ℕ : Type1 = [A : Type] → (A → A) → A → A
 let Nat = ℕ
 
 let Z : ℕ =
-λ[_ _ z] z
+λ _ _ z => z
 
 let S [n : ℕ] : ℕ =
-λ[A s z] s (n A s z)
+λ A s z => s (n A s z)
 
 let zero : ℕ = Z
 let one : ℕ = S zero
@@ -82,7 +93,7 @@ let Loop-n [n : ℕ^2] [P : Pointed-Type] : Pointed-Type =
   n Pointed-Type Loop P
 
 let 0≢Sn [n : ℕ^2] [0≡Sn : Id ℕ^2 Z^2 (S^2 n)] : ⊥ =
-subst^3 ℕ^2 (λ[n] n Type1 (λ[_] ⊥) ⊤) Z^2 (S^2 n) 0≡Sn ⟨⟩ 
+subst^3 ℕ^2 (λ n => n Type1 (λ _ => ⊥) ⊤) Z^2 (S^2 n) 0≡Sn ⟨⟩ 
 
 let 0≢1 [0≡1 : Id ℕ^2 Z^2 (S^2 Z^2)] : ⊥ =
 0≢Sn Z^2 0≡1
@@ -105,30 +116,30 @@ postulate
 
 
 let add [m n : ℕ] : ℕ =
-λ[A s z] m A s (n A s z)  
+λ A s z => m A s (n A s z)  
 
 let mul [m n : ℕ] : ℕ =
-λ[A s z] m A (n A s) z
+λ A s z => m A (n A s) z
 
 
-let 1+1≡2 : Id ℕ (add (S Z) (S Z)) (S (S Z)) = refl
+let 1+1≡2 : Id ℕ (add (S Z) (S Z)) (S (S Z)) = refl (S (S Z))
 
 let ∞-ℕ [n : ℕ] : [m : ℕ] * Id ℕ m (S n) =
-(S n , refl)
+(S n , refl (S n))
 
-let curry [A B C : Type] [f : A → B → C] : A * B → C =
-λ[p] f p.1 p.2
+let curry [A B C : Type] [f : A → B → C] : A × B → C =
+λ p => f p.1 p.2
 
-let d-curry [A B : Type] [P : A → B → Type] [f : [x : A] [y : B] → P x y] : [z : A * B] → (curry^1 A B Type P z) =
-λ[p] f p.1 p.2
+let d-curry [A B : Type] [P : A → B → Type] [f : [x : A] [y : B] → P x y] : [z : A × B] → (curry^1 A B Type P z) =
+λ p => f p.1 p.2
 
-let uncurry [A B C : Type] [f : A * B → C] : A → B → C =
-λ[x y] f (x,y)
+let uncurry [A B C : Type] [f : A × B → C] : A → B → C =
+λ x y => f (x,y)
 
-let d-uncurry [A B : Type] [P : A * B → Type] [f : [z : A * B] → P z] : [x : A] [y : B] → (uncurry^1 A B Type P x y) =
-λ[x y] f (x,y)
+let d-uncurry [A B : Type] [P : A * B → Type] [f : [z : A × B] → P z] : [x : A] [y : B] → (uncurry^1 A B Type P x y) =
+λ x y => f (x,y)
 
-let Vec [A : Type] [n : ℕ^2] : Type1 = n Type1 (λ[x] A * x) ⊤
+let Vec [A : Type] [n : ℕ^2] : Type1 = n Type1 (λ x => A * x) ⊤
 
 let vnil [A : Type] : Vec A Z^2 = ⟨⟩
 
@@ -154,9 +165,9 @@ let none [A : Type] : Maybe A = inj₂^1 A ⊤ ⟨⟩
 let some [A : Type] [x : A] : Maybe A = inj₁^1 A ⊤ x
 
 let maybe [A : Type] [m : Maybe A] [C : Type] [some : A → C] [none : C] : C =
-m C some (λ[_] none)
+m C some (λ _ => none)
 
-let Monoid [M : Type] : Type = M * (M → M → M)
+let Monoid [M : Type] : Type = M × (M → M → M)
 
 let Monoid-Verified [M : Type] : Type1 =
   [unit : M] [join : M → M → M ] ×
@@ -169,7 +180,7 @@ let Functor [F : Type → Type1] : Type1 =
 [A B : Type] → (A → B) → (F A → F B)
 
 let Id-F : Functor (id^1 Type) =
-λ[A B] id^1 (A → B)
+λ A B => id^1 (A → B)
 
 let Contractible [A : Type] : Type1  = [x : A] × [y : A] → Id A x y
 
@@ -179,3 +190,8 @@ let hd [A : Type] [s : Stream A] : A = s.1
 let tl [A : Type] [s : Stream A] : Stream A = s.2 s.1 , s.2
 
 let Nats : Stream^1 ℕ = Z , S
+
+let H-Eq [A B : Type] [x : A] [y : B] : Type1 = [P : [A : Type] -> A -> Type] -> P A x -> P B y
+let Eq [A : Type] [x y : A] : Type1 = H-Eq A A x y
+
+let H-refl [A : Type] [x : A] : H-Eq A A x x = λ _ x => x
