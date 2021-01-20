@@ -1,6 +1,6 @@
 open Core
-open Ast
 open Statics
+open Ast
 open Dynamics
 
 
@@ -26,18 +26,18 @@ let run_stm s = reset_var_stream (); function
   | Eval e ->
     let e = bind_all e in
     let t = synthtype s e in 
-    printf "_ : %s\n" (pretty @@ beta s t);
+    printf "_ : %s\n" (pretty t);
     printf "_ = %s\n\n" (pretty @@ beta s e);
     s
   | Decl (x,e) -> 
     let e = bind_all e in
     let t = synthtype s e in
-    let e',t' = beta s e, beta s t in
-    printf "%s : %s\n" x (pretty t');
+    let e' = beta s e in
+    printf "%s : %s\n" x (pretty t);
     printf "%s = %s\n\n" x (pretty e');
-    s ++ (x, (e',t'))
+    s ++ (x, (e',t))
   | Postulate (x,t) ->
-    let t' = beta s (bind_all t) in
+    let t' = bind_all t in
     printf "postulate %s : %s\n\n" x (pretty t');
     s ++ (x, (f x,t'))
     
@@ -48,17 +48,12 @@ let rec repl s =
   if String.equal txt "" then repl s;
   try repl @@ List.fold (parse txt) ~init:s ~f:run_stm with 
     | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e;repl s
-    | Unsolved e   -> printf "Unsolved Meta-var : %s\n" e; repl s
+    | Unsolved e   -> printf "%s\n" e; repl s
     | ParseError e -> printf "Parse Error: %s\n" e; repl s
 
 
 let parse_string e = e |> parse |> List.hd_exn |> (function (Eval e) -> e | _ -> failwith "") |> bind_all
 
-(* let e1 = parse_string "[x : Type] -> x" 
-
-let e2 = parse_string "Type -> _"
-
-let _ : unit = Int.Map.iteri (unify e1 e2) ~f:(fun ~key ~data -> printf "Meta %s --> %s\n" (Int.to_string key) (show_ast data)) *)
 
 let _ : unit = 
   let args = Sys.get_argv () in
@@ -66,5 +61,5 @@ let _ : unit =
   let s = parse_file args.(1) in
   try repl @@ List.fold s ~init:Context.empty ~f:run_stm with 
       | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e
-      | Unsolved e  -> printf "Unsolved Meta-var : %s\n" e
+      | Unsolved e  -> printf "%s\n" e
       | ParseError e -> printf "Parse Error: %s\n" e

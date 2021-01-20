@@ -1,10 +1,15 @@
 
-
+open Core
 open Ast
 
 
 let subst e x = bottom_up (function
   | F y when String.equal x y -> out e
+  | x -> x
+)
+
+let subst_ast e1 e2 = bottom_up (function
+  | x when equal_ast (into x) e2 -> out e1
   | x -> x
 )
 
@@ -33,7 +38,7 @@ let rec beta ((s,g) as c) ast =
         | None -> failwith "Should be precluded by typechecking"
       end
     | Lam (x,e) -> 
-      let (x',e') = unbind (x,e) in 
+      let (x',e') = unbind (x,e) in
       mark_as ast @@ lam (x,bind x' (beta c e'))
     | App (e1,e2) ->
       begin
@@ -63,17 +68,45 @@ let rec beta ((s,g) as c) ast =
       let (x',e') = unbind (x,e) in
       mark_as ast @@ sigma (mark_as t @@ beta c t,(x,bind x' (mark_as e @@ beta c e')))
     | Annot (e,_) -> mark_as e @@ beta c e
-    | Refl {ast=e} -> mark_as ast @@ refl (beta c e)
-    | J ((x,y,z,e1),(a,e2),prf) ->
+    | Refl r -> mark_as ast @@ refl (beta c r)
+    | J ((x,y,z,mot),(a,e2),prf) ->
       begin
       match out @@ beta c prf with
-        | Refl {ast=e} -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,e)) e2)
+        | Refl e -> let (a,e2) = unbind (a,e2) in mark_as e2 (beta (s,g ++ (a,e)) e2)
         | prf' ->
-          let (x',y',z',e1) = unbind3 (x,y,z,e1) in
+          let (x',y',z',mot) = unbind3 (x,y,z,mot) in
           let (a',e2) = unbind (a,e2) in
-          mark_as ast @@ j ((x,y,z,bind3 (x',y',z') (beta c e1)),(a,bind a' (beta c e2)),mark_as prf @@ into prf')
+          mark_as ast @@ j ((x,y,z,bind3 (x',y',z') (beta c mot)),(a,bind a' (beta c e2)),mark_as prf @@ into prf')
       end
-    | Id (t,m,n) -> mark_as ast @@ id (beta c t,m,n)
+    | Id (t,m,n) -> mark_as ast @@ id (beta c t,beta c m,beta c n)
+    | Sum (t1,t2) -> mark_as ast @@ sum (beta c t1,beta c t2)
+    | Inj1 e -> mark_as ast @@ inj1 (beta c e)
+    | Inj2 e -> mark_as ast @@ inj2 (beta c e)
+    | Case ((a,mot),(x,e1),(y,e2),e) ->
+      begin
+      match out @@ beta c e with
+        | Inj1 e -> 
+          let (x,e1) = unbind (x,e1) in
+          mark_as e1 @@ beta (s,g ++ (x,e)) e1
+        | Inj2 e ->
+          let (y,e2) = unbind (y,e2) in
+          mark_as e2 @@ beta (s,g ++ (y,e)) e2
+        | e' ->
+          let (a',mot) = unbind (a,mot) in
+          let (x',e1) = unbind (x,e1) in
+          let (y',e2) = unbind (y,e2) in
+          mark_as ast @@ case ((a,bind a' (beta c mot)),(x,bind x' (beta c e1)),(y,bind y' (beta c e2)),mark_as e @@ into e')
+      end
+    | OneInd ((a,mot),e1,e) ->
+      begin
+      match out @@ beta c e with
+        | Unit -> beta c e1
+        | e' ->
+          let (a',mot) = unbind (a,mot) in
+          mark_as ast @@ one_ind ((a,bind a' (beta c mot)),beta c e1,mark_as e @@ into e')
+      end
+    | ZeroInd (mot,e) -> mark_as ast @@ zero_ind (beta c mot,beta c e)
+    | Meta {sol = Some e; _} -> beta c e
     | _ -> ast
 
 

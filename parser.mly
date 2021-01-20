@@ -3,9 +3,13 @@
 
 open Core.List
 
-let fresh =
+let fresh_meta =
   let r = ref 0 in
-  fun () -> r := !r + 1; !r
+  fun () -> r := !r + 1; Ast.meta !r
+
+let fresh_var = 
+  let r = ref 0 in
+  fun () -> r := !r + 1; "x"^Core.Int.to_string !r
 
 let arg_fold (xs,e) = fold_right xs ~init:e ~f:(fun x e -> Ast.lam (x,e))
 
@@ -25,8 +29,9 @@ let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.app (x,e))
 %token Eof
 %token Underbar
 %token Let Equal Postulate 
-%token Lambda Colon Comma DotOne DotTwo Carat
-%token Arrow Star
+%token One Unit Zero
+%token Lambda Colon Comma DotOne DotTwo Carat OneDot TwoDot
+%token Arrow Star Plus
 %token Id Refl Match At ThickArrow Bar With
 %token L_paren R_paren L_square R_square
 %token <string> Ident
@@ -69,13 +74,18 @@ let annot_args :=
 let atomic :=
   | paren(expr)
   | ~ = Ident ; <Ast.f>
-  | Underbar; { Ast.meta (fresh ()) } 
+  | Underbar; { fresh_meta () } 
   | ~ = Ident; Carat; ~ = Dec_const; <Ast.lift>
   | L_paren; e = m(expr); Colon; t = m(expr); R_paren; <Ast.annot> 
   | i = Type; {Ast.typ (Nat i)}
   | Refl; ~ = atomic; <Ast.refl>
   | ~ = m(atomic); DotOne; <Ast.proj1>
   | ~ = m(atomic); DotTwo; <Ast.proj2>
+  | OneDot; ~ = m(atomic); <Ast.inj1>
+  | TwoDot; ~ = m(atomic); <Ast.inj2>
+  | One; { Ast.one }
+  | Unit; { Ast.unit }
+  | Zero; { Ast.zero }
 
 let expr :=
   | e1 = m(atomic); args = list(m(atomic)); { app_fold (e1,args) }
@@ -90,19 +100,38 @@ let expr :=
   | args = nonempty_list(square(annot_args)); Star; e = m(expr); { multi_annot_arg_fold Ast.sigma (args,e) }
   | t1 = m(expr); Star; t2 = m(expr); { Ast.sigma (t1,("",t2)) }
   | e1 = m(expr); Comma; e2 = m(expr); { Ast.pair (e1,e2) }
-  | Match;
-    prf = m(expr);
-    At;
-    a = bound_name;
-    b = bound_name;
-    c = bound_name;
-    ThickArrow;
-    e1 = m(expr);
-    With;
-    option(Bar);
-    Refl;
-    d = bound_name;
-    ThickArrow;
-    e2 = m(expr);
+  | e1 = m(expr); Plus; e2 = m(expr); { Ast.sum (e1,e2) }
+  
+  | Match; e = m(expr); At; a = bound_name; ThickArrow; mot = m(expr); With;
+    option(Bar); OneDot; x = bound_name; ThickArrow; e1 = m(expr);
+    Bar; TwoDot; y = bound_name; ThickArrow; e2 = m(expr);
+    { Ast.case ((a,mot),(x,e1),(y,e2),e)}
+
+  | Match; e = m(expr); With;
+    option(Bar); OneDot; x = bound_name; ThickArrow; e1 = m(expr);
+    Bar; TwoDot; y = bound_name; ThickArrow; e2 = m(expr);
+    { Ast.case ((fresh_var(), fresh_meta ()),(x,e1),(y,e2),e)}
+
+  | Match; prf = m(expr); At; a = bound_name; b = bound_name; c = bound_name; ThickArrow; e1 = m(expr); With;
+    option(Bar); Refl; d = bound_name; ThickArrow; e2 = m(expr);
     { Ast.j ((a,b,c,e1),(d,e2),prf)}
+
+  | Match; prf = m(expr); With;
+    option(Bar); Refl; x = bound_name; ThickArrow; e1 = m(expr);
+    { Ast.j ((fresh_var (),fresh_var (),fresh_var (),fresh_meta ()),(x,e1),prf) }
+
+  | Match; e = m(expr); At; a = bound_name; ThickArrow; mot = m(expr); With;
+    option(Bar); Unit; ThickArrow; e1 = m(expr);
+    { Ast.one_ind ((a,mot),e1,e) }
+  
+  | Match; e = m(expr); With;
+    option(Bar); Unit; ThickArrow; e1 = m(expr);
+    { Ast.one_ind ((fresh_var (),fresh_meta ()),e1,e) }
+
+  | Match; e = m(expr); At; mot = m(expr);
+    { Ast.zero_ind (mot,e) }
+
+  | Match; e = m(expr);
+    { Ast.zero_ind (fresh_meta (), e) }
+  
 
