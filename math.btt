@@ -7,12 +7,13 @@ let Bool-Ind [P : Bool -> Type] [t : P tt] [f : P ff] [b : Bool] : P b =
     | 1.x => match x with <> => t
     | 2.x => match x with <> => f
 
+
 let if [A : Type] [b : Bool] [t : A] [f : A] : A =
   Bool-Ind (λ _ => A) t f b 
 
 
 let ¬ [A : Type] : Type = A -> ⊥
-  
+
 let sym [A : Type] [x y : A] [x≡y : Id A x y] : Id A y x =
   match x≡y with
     | refl _ => refl _
@@ -59,20 +60,20 @@ let ¬tt≡ff : ¬ (Id Bool tt ff) =
 
 let Pointed-Type : Type1 = [x : Type] × x
 
-let Pointed-One : Pointed-Type = (One,<>)
+let Pointed-⊤ : Pointed-Type = (⊤,<>)
 
 let Pointed-Type0 : Pointed-Type^1 = (Type,One)
 
 let Pointed-Type1 : Pointed-Type^2 = (Type1,Type)
 
 let Loop [P : Pointed-Type] : Pointed-Type =
-(Id P.1 P.2 P.2 , refl P.2)
+  (Id P.1 P.2 P.2 , refl P.2)
 
-let pointed≢Zero [A : Pointed-Type] [A≡Zero : Id Type A.1 Zero] : Zero =
-coerce A.1 Zero A≡Zero A.2
+let ¬pointed≡⊥ [A : Pointed-Type] : ¬^1 (Id Type A.1 ⊥) =
+  λ A≡⊥ => coerce A.1 ⊥ A≡⊥ A.2
 
-let One≢Zero : Id Type One Zero -> Zero =
-pointed≢Zero Pointed-One
+let ¬⊤≡⊥ : ¬^1 (Id Type One Zero) =
+  ¬pointed≡⊥ Pointed-⊤
 
 let Contractible [A : Type] : Type1  = [x : A] × [y : A] -> Id A x y
 
@@ -86,16 +87,57 @@ let ≃ [A B : Type] : Type1 =
 [f : A -> B] × [g : B -> A] × ([x : A] -> Id A x (g (f x))) × ([y : B] -> Id B y (f (g y)))
 
 
-let swap [A B : Type] : ≃ (A × B) (B × A) =
+let swap× [A B : Type] : ≃ (A × B) (B × A) =
   (λ p => p.2 , p.1) ,
   (λ p => p.2 , p.1) ,
-  (λ x => refl x) ,
-  (λ x => refl x)
+  (λ _ => refl _) ,
+  (λ _ => refl _)
 
-{-
-let iso1 [A B : Type] : ≃ A (A × One)  =
+let swap+ [A B : Type] : ≃ (A + B) (B + A) =
+  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
+  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
+  (λ x => match x with 1._ => refl _ | 2._ => refl _),
+  (λ x => match x with 1._ => refl _ | 2._ => refl _)
+
+
+let iso1 [A : Type] : ≃ A (A × ⊤) =
   (λ x => x , <>) ,
   (λ p => p.1) ,
   (λ x => refl x) ,
-  (λ p => _)
+  (λ p => match p.2 at x => Id (A × One) (p.1,x) (p.1,<>) with <> => refl _ )
+
+
+let iso2 [A : Type] : ≃ A (A + ⊥) =
+  (λ a => 1.a),
+  (λ s => match s with 
+    | 1.a => a 
+    | 2.f => match f),
+  (λ x => refl _),
+  (λ s => match s with 1._ => refl _ | 2.x => match x)
+
+let iso3 [A B : Type] : ≃^1 (≃ A B) (≃ B A) =
+  (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
+  (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
+  (λ _ => refl _),
+  (λ _ => refl _)
+
+
+let ⊎ [A B : Type] : Type = [b : Bool] × if^1 Type b A B
+let inj₁ [A B : Type] [a : A] : ⊎ A B = (tt , a)
+let inj₂ [A B : Type] [b : B] : ⊎ A B = (ff , b)
+
+{-
+let ⊎-Ind [A B : Type] [P : ⊎ A B -> Type] [l : [x : A] -> P (inj₁ A B x)] [r : [x : B] -> P (inj₂ A B x)] [x : ⊎ A B] : P x =
+  match x.1 at z => P (z,_) with
+    | 1.t => _
+    | 2.f => _
+
+
+let iso4 [A B : Type] : ≃ (A + B) (⊎ A B) =
+  (λ x => match x with 1.x => inj₁ A B x | 2.x => inj₂ A B x),
+  (λ x => ),
+  _,
+  _
 -}
+
+
