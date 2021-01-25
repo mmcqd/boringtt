@@ -45,7 +45,7 @@ let rec repl s =
   try repl @@ List.fold (parse txt) ~init:s ~f:run_stm with 
     | TypeError e -> printf "Type Error: %s\n" e;repl s
     | ParseError e -> printf "Parse Error: %s\n" e; repl s
-    | Unsolved e -> printf "Unsolved Meta-Var\n%s" e; repl s
+    | Unsolved e -> printf "Unsolved Meta-Var\n%s\n" e; repl s
 
 
 
@@ -56,4 +56,4 @@ let _ : unit =
   try repl @@ List.fold s ~init:Env.empty ~f:run_stm with 
       | TypeError e -> printf "Type Error: %s\n" e
       | ParseError e -> printf "Parse Error: %s\n" e
-      | Unsolved e -> printf "Unsolved Meta-Var\n%s" e
+      | Unsolved e -> printf "Unsolved Meta-Var\n%s\n" e
