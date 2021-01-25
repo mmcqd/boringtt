@@ -28,9 +28,9 @@ rule initial = parse
   | ',' { Comma }
   | ".1" { DotOne }
   | ".2" { DotTwo }
-  | "One" | "⊤" { One }
+  | "One" | "⊤" | "𝟙" { One }
   | "<>"  { Unit }
-  | "Zero" | "⊥" { Zero }
+  | "Zero" | "⊥" | "𝟘" { Zero }
   | "Type" { Type }
   | "let" { Let }
   | "=" { Equal }

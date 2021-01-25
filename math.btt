@@ -26,7 +26,8 @@ let coerce-id [A B : Type] [A≡B : Id Type A B] [x y : A] [x≡y : Id A x y] : 
 
 let ¬ [A : Type] : Type = A -> ⊥
 
-let Bool : Type = ⊤ + ⊤
+let 𝟚 : Type = 𝟙 + 𝟙
+let Bool : Type = 𝟚
 let tt : Bool = 1.<>
 let ff : Bool = 2.<>
 let Bool-Ind [P : Bool -> Type] [t : P tt] [f : P ff] [b : Bool] : P b =
@@ -38,9 +39,46 @@ let if [A : Type] [b : Bool] [t : A] [f : A] : A =
   Bool-Ind (λ _ => A) t f b 
 
 let ¬tt≡ff : ¬ (Id Bool tt ff) =
-  λ tt≡ff => subst Bool (λ b => if^1 Type b One Zero) tt ff tt≡ff <>
+  λ tt≡ff => subst Bool (λ b => if^1 Type b 𝟙 𝟘) tt ff tt≡ff <>
 
-let Maybe [A : Type] : Type = A + One
+let not [b : Bool] : Bool = if Bool b ff tt
+
+let and [b1 b2 : Bool] : Bool =
+  if Bool b1 b2 ff
+
+let or [b1 b2 : Bool] : Bool =
+  if Bool b1 tt b2
+
+let not-id [b : Bool] : Id Bool b (not (not b)) = 
+  match b with
+    | 1.x => refl
+    | 2.x => refl 
+
+
+let de-morgan1 [p q : Bool] : Id Bool (not (or p q)) (and (not p) (not q)) =
+  match p with
+    | 1.x => 
+      match q with
+        | 1.y => refl
+        | 2.y => refl
+    | 2.x => 
+      match q with
+        | 1.y => refl
+        | 2.y => refl
+
+let de-morgan2 [p q : Bool] : Id Bool (not (and p q)) (or (not p) (not q)) =
+  match p with
+    | 1.x => 
+      match q with
+        | 1.y => refl
+        | 2.y => refl
+    | 2.x => 
+      match q with
+        | 1.y => refl
+        | 2.y => refl
+
+
+let Maybe [A : Type] : Type = A + 𝟙
 let some [A : Type] [x : A] : Maybe A = 1.x
 let none [A : Type] : Maybe A = 2.<>
 
@@ -54,11 +92,11 @@ let maybe [A B : Type] [s : A -> B] [n : B] [m : Maybe A] : B =
 
 let Pointed-Type : Type^1 = [x : Type] × x
 
-let Pointed-⊤ : Pointed-Type = (⊤,<>)
+let Pointed-𝟙 : Pointed-Type = (𝟙,<>)
 
-let Pointed-Type0 : Pointed-Type^1 = (Type,One)
+let Pointed-Type0 : Pointed-Type^1 = (Type,𝟙)
 
-let Pointed-Type1 : Pointed-Type^2 = (Type^1,Type)
+let Pointed-TypeN : Pointed-Type^2 = (Type^1,Type)
 
 let Loop [P : Pointed-Type] : Pointed-Type =
   (Id P.1 P.2 P.2 , refl)
@@ -67,11 +105,11 @@ let ¬pointed≡⊥ [A : Pointed-Type] : ¬^1 (Id Type A.1 ⊥) =
   λ A≡⊥ => coerce A.1 ⊥ A≡⊥ A.2
 
 let ¬⊤≡⊥ : ¬^1 (Id Type One Zero) =
-  ¬pointed≡⊥ Pointed-⊤
+  ¬pointed≡⊥ Pointed-𝟙
 
 let Contractible [A : Type] : Type^1  = [x : A] × [y : A] -> Id A x y
 
-let One-Contractible : Contractible One =
+let 𝟙-Contractible : Contractible 𝟙 =
   (<> , λ x => refl)
 
 let ⇔ [A B : Type] : Type = (A -> B) × (B -> A)
@@ -93,14 +131,14 @@ let swap+ [A B : Type] : ≃ (A + B) (B + A) =
   (λ x => match x with 1.x => refl | 2.x => refl)
 
 
-let iso1 [A : Type] : ≃ A (A × ⊤) =
+let iso1 [A : Type] : ≃ A (A × 𝟙) =
   (λ x => x , <>) ,
   (λ p => p.1) ,
   (λ x => refl) ,
   (λ p => refl)
 
 
-let iso2 [A : Type] : ≃ A (A + ⊥) =
+let iso2 [A : Type] : ≃ A (A + 𝟘) =
   (λ a => 1.a),
   (λ s => match s with 
     | 1.a => a 
@@ -116,13 +154,13 @@ let iso3 [A B : Type] : ≃^1 (≃ A B) (≃ B A) =
   (λ x => refl),
   (λ x => refl)
 
-let iso4 [A : Type] : ≃ A (⊤ -> A) =
+let iso4 [A : Type] : ≃ A (𝟙 -> A) =
   (λ a _ => a) ,
   (λ t => t <>) ,
   (λ a => refl) ,
   (λ t => refl)
 
-let iso5 [A : Type] : ≃ (A + A) (Bool × A) =
+let iso5 [A : Type] : ≃ (A + A) (𝟚 × A) =
   (λ s => match s with
     | 1.x => tt,x
     | 2.x => ff,x) ,
@@ -133,10 +171,6 @@ let iso5 [A : Type] : ≃ (A + A) (Bool × A) =
   (λ p => match p.1 with
     | 1.x => refl
     | 2.x => refl)
-
-
-
-
 
 
 {-
