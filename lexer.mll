@@ -1,13 +1,11 @@
 {
 
 open Core
-module T = Parser
+open Parser
 
 }
 
-
-
-let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' '_' ';' '|' '+']+
+let ident = [^ '(' ')' '[' ']' '\\' ':' ',' '=' ' ' '\t' '\n' '.' '^' '_' ';' '|' '?']+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
 let whitespace = [' ' '\t' '\r']
@@ -15,44 +13,47 @@ let whitespace = [' ' '\t' '\r']
 rule initial = parse
   | whitespace+ { initial lexbuf }
   | '\n' { Lexing.new_line lexbuf; initial lexbuf }
-  | '(' { T.L_paren }
-  | ')' { T.R_paren }
-  | '[' { T.L_square }
-  | ']' { T.R_square }
-  | "fn" | "λ" { T.Lambda }
-  | ':' { T.Colon }
-  | '_' { T.Underbar }
-  | '*' | "×" { T.Star }
-  | ',' { T.Comma }
-  | '^' { T.Carat }
-  | '|' { T.Bar }
-  | '+' { T.Plus }
-  | ".1" { T.DotOne }
-  | ".2" { T.DotTwo }
-  | "1." { T.OneDot }
-  | "2." { T.TwoDot }
-  | "->" | "→" { T.Arrow }
-  | "=>" { T.ThickArrow }
-  | "Type" (dec_num as d) { T.Type (Int.of_string d) }
-  | "Type" { T.Type 0 }
-  | "One" | "⊤" { T.One }
-  | "<>"  { T.Unit }
-  | "Zero" | "⊥" { T.Zero }
-  | "let" { T.Let }
-  | "Id" { T.Id }
-  | "refl" { T.Refl }
-  | "match" { T.Match }
-  | "at" { T.At }
-  | "with" { T.With }
-  | "postulate" { T.Postulate }
-  | "=" { T.Equal }
-  | dec_num as d { T.Dec_const (Int.of_string d) }
+  | '(' { L_paren }
+  | ')' { R_paren }
+  | '[' { L_square }
+  | ']' { R_square }
+  | '?' { Question_mark }
+  | "fn" | "λ" { Lambda }
+  | "->" | "→" { Arrow }
+  | "=>" { Thick_arrow }
+  | '^' { Caret }
+  | ':' { Colon }
+  | '_' { Underbar }
+  | '*' | "×" { Star }
+  | ',' { Comma }
+  | ".1" { DotOne }
+  | ".2" { DotTwo }
+  | "One" | "⊤" { One }
+  | "<>"  { Unit }
+  | "Zero" | "⊥" { Zero }
+  | "Type" { Type }
+  | "let" { Let }
+  | "=" { Equal }
+  | '|' { Bar }
+  | "Id" { Id }
+  | "refl" { Refl }
+  | '+' { Plus }
+  | "1." { OneDot }
+  | "2." { TwoDot }
+  | "match" { Match }
+  | "at" { At }
+  | "with" { With }
+  | dec_num as d { Dec_const (Int.of_string d) }
   | "{-" { comment 1 lexbuf }
   | "-}" { failwith "Unbalanced comments" }
   | "--" { comment_line lexbuf }
-  | ident as name { T.Ident name }
-  | eof { T.Eof }
+  | ident as name { Ident name }
+  | eof { Eof }
   | _ as x { failwith ("illegal char: " ^ (Char.to_string x)) }
+
+(*
+  | "postulate" { T.Postulate }
+*)
 
 and comment nesting = parse
   | '\n' { Lexing.new_line lexbuf; comment nesting lexbuf }

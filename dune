@@ -1,6 +1,6 @@
 (executable
   (name repl)
-  (libraries core angstrom)
+  (libraries core)
   (preprocess (pps ppx_deriving.std ppx_jane)))
 
 (ocamllex 

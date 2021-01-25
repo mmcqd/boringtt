@@ -1,8 +1,7 @@
 open Core
-open Statics
 open Ast
-open Dynamics
-
+open Eval
+open Typechecker
 
 exception ParseError of string
 
@@ -22,44 +21,39 @@ let parse_file s =
       raise @@ ParseError (sprintf "%s:%s" (show_loc s) (show_loc e))
 
 
-let run_stm s = reset_var_stream (); function
+let run_stm sg = function
   | Eval e ->
-    let e = bind_all e in
-    let t = synthtype s e in 
-    printf "_ : %s\n" (pretty t);
-    printf "_ = %s\n\n" (pretty @@ beta s e);
-    s
+    let t = synthtype sg e in 
+    let e' = eval sg Env.empty e in
+    printf "_ : %s\n" (pp_term (read_back sg String.Set.empty (VType Omega) t));
+    printf "_ = %s\n\n" (pp_term (read_back sg String.Set.empty t e'));
+    sg
   | Decl (x,e) -> 
-    let e = bind_all e in
-    let t = synthtype s e in
-    let e' = beta s e in
-    printf "%s : %s\n" x (pretty t);
-    printf "%s = %s\n\n" x (pretty e');
-    s ++ (x, (e',t))
-  | Postulate (x,t) ->
-    let t' = bind_all t in
-    printf "postulate %s : %s\n\n" x (pretty t');
-    s ++ (x, (f x,t'))
-    
+    let t = synthtype sg e in
+    let e' = eval sg Env.empty e in
+    let public_t = (match e with Ascribe (_,t) -> t | _ -> read_back sg String.Set.empty (VType Omega) t) in
+    printf "%s : %s\n\n" x (pp_term public_t);
+    (* printf "%s = %s\n\n" x (pp_term (read_back sg String.Set.empty t e')); *)
+    sg ++ (x, {tm = e' ; ty = t})
+
+
 
 let rec repl s = 
   print_string "-- ";
   let txt = Stdlib.read_line () in
   if String.equal txt "" then repl s;
   try repl @@ List.fold (parse txt) ~init:s ~f:run_stm with 
-    | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e;repl s
-    | Unsolved e   -> printf "%s\n" e; repl s
+    | TypeError e -> printf "Type Error: %s\n" e;repl s
     | ParseError e -> printf "Parse Error: %s\n" e; repl s
+    | Unsolved e -> printf "Unsolved Meta-Var\n%s" e; repl s
 
-
-let parse_string e = e |> parse |> List.hd_exn |> (function (Eval e) -> e | _ -> failwith "") |> bind_all
 
 
 let _ : unit = 
   let args = Sys.get_argv () in
-  if Array.length args = 1 then repl Context.empty;
+  if Array.length args = 1 then repl Env.empty;
   let s = parse_file args.(1) in
-  try repl @@ List.fold s ~init:Context.empty ~f:run_stm with 
-      | SynthFailed e | CheckFailed e -> printf "Type Error: %s\n" e
-      | Unsolved e  -> printf "%s\n" e
+  try repl @@ List.fold s ~init:Env.empty ~f:run_stm with 
+      | TypeError e -> printf "Type Error: %s\n" e
       | ParseError e -> printf "Parse Error: %s\n" e
+      | Unsolved e -> printf "Unsolved Meta-Var\n%s" e
