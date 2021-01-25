@@ -31,7 +31,8 @@ let run_stm sg = function
   | Decl (x,e) -> 
     let t = synthtype sg e in
     let e' = eval sg Env.empty e in
-    printf "%s : %s\n\n" x (pp_term (read_back sg String.Set.empty (VType Omega) t));
+    let public_t = (match e with Ascribe (_,t) -> t | _ -> read_back sg String.Set.empty (VType Omega) t) in
+    printf "%s : %s\n\n" x (pp_term public_t);
     (* printf "%s = %s\n\n" x (pp_term (read_back sg String.Set.empty t e')); *)
     sg ++ (x, {tm = e' ; ty = t})
 

@@ -29,6 +29,13 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
     | Refl e -> VRefl (eval sg env e)
     | J {mot ; case ; scrut} -> j sg env mot case (eval sg env scrut)
     | Meta {sol = Some e;_} -> eval sg env e
+    | Sum (e1,e2) -> VSum (eval sg env e1, eval sg env e2)
+    | Inj1 e -> VInj1 (eval sg env e)
+    | Inj2 e -> VInj2 (eval sg env e)
+    | Case {mot ; case1 ; case2 ; scrut} ->
+      case sg env mot case1 case2 (eval sg env scrut)
+    | Zero -> VZero
+    | ZeroInd {mot ; scrut} -> zero_ind (eval sg env mot) (eval sg env scrut)
     | Meta {sol = None; _} -> failwith "Usolved Meta-Var"
 
   and app (sg : normal Env.t) (v1 : value) (v2 : value) : value =
@@ -54,11 +61,11 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
         VNeutral {ty = eval_closure sg c (proj1 sg v) ; neu = NProj2 neu}
       | _ -> failwith "Should be caught by type checker - proj2"
 
-  and j (sg : normal Env.t) (env : value Env.t) ((x,y,z,mot) : term binder3) ((a,case) : term binder) (scrut : value) = 
+  and j (sg : normal Env.t) (env : value Env.t) ((x,y,z,mot) : term binder3) ((a,case) : term binder) (scrut : value) : value = 
     match scrut with
       | VRefl v -> eval sg (env ++ (a,v)) case
-      | VNeutral {ty = VId (t,e1,e2) as id ; neu} ->
-        VNeutral {ty = eval sg (env ++ (x,e1) ++ (y,e2) ++ (z,id)) mot ; 
+      | VNeutral {ty = VId (t,e1,e2) ; neu} ->
+        VNeutral {ty = eval sg (env ++ (x,e1) ++ (y,e2) ++ (z,scrut)) mot ; 
                   neu = NJ {mot = {env ; names = (x,y,z) ; body = mot} ; 
                             case = {env ; name = a ; body = case} ;
                             ty = t;
@@ -68,6 +75,28 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
                            }
                   }
       | _ -> failwith "Should be caught by type checker - j"
+
+  and case (sg : normal Env.t) (env : value Env.t) ((x,mot) : term binder) ((a,case1) : term binder) ((b,case2) : term binder) (scrut : value) : value =
+    match scrut with
+      | VInj1 e -> eval sg (env ++ (a,e)) case1
+      | VInj2 e -> eval sg (env ++ (b,e)) case2
+      | VNeutral {ty = VSum (e1,e2) ; neu} ->
+        VNeutral {ty = eval sg (env ++ (x,scrut)) mot ;
+                  neu = NCase {mot = {env ; name = x ; body = mot} ;
+                               case1 = {env ; name = a; body = case1} ;
+                               case2 = {env ; name = b; body = case2} ;
+                               left = e1;
+                               right = e2;
+                               scrut = neu
+                              }
+                  }
+      | _ -> failwith "Should be caught by type checker - case"
+
+  and zero_ind (mot : value) (scrut : value) =
+    match scrut with
+      | VNeutral {ty = VZero ; neu} ->
+        VNeutral {ty = mot ; neu = NZeroInd {mot = mot ; scrut = neu}}
+      | _ -> failwith "Should be caught by type checker - zero_ind"
 
   and eval_closure (sg : normal Env.t) ({env ; name ; body} : closure) (v : value) : value =
     eval sg (env ++ (name,v)) body
@@ -86,8 +115,16 @@ and read_back (sg : normal Env.t) (used : String.Set.t) (ty : value) (v : value)
       let x = freshen used (closure_name c) in
       let x_val = VNeutral {neu = NVar x ; ty = t} in
       Sg (read_back sg used (VType i) t, (x,read_back sg (String.Set.add used x) (VType i) (eval_closure sg c x_val)))
+    | VPi (t,({name = "_" ; _} as c)), (VLam c' as f) ->
+      let x = freshen used (closure_name c') in
+      let x_val = VNeutral {neu = NVar x ; ty = t} in
+      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
+    | VPi (t,({name = "_" ; _} as c)), f ->
+      let x = freshen used "x" in
+      let x_val = VNeutral {neu = NVar x ; ty = t} in
+      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
     | VPi (t,c), f ->
-      let x = freshen used(closure_name c) in
+      let x = freshen used (closure_name c) in
       let x_val = VNeutral {neu = NVar x ; ty = t} in
       Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
     | VSg (t,c), p ->
@@ -97,6 +134,10 @@ and read_back (sg : normal Env.t) (used : String.Set.t) (ty : value) (v : value)
     | VOne, _ -> Unit
     | VType i,VId (t,e1,e2) -> Id (read_back sg used (VType i) t,read_back sg used t e1, read_back sg used t e2)
     | VId (t,_,_), VRefl e -> Refl (read_back sg used t e)
+    | VType i,VSum (e1,e2) -> Sum (read_back sg used (VType i) e1, read_back sg used (VType i) e2)
+    | VSum (e1,_),VInj1 e -> Inj1 (read_back sg used e1 e)
+    | VSum (_,e2),VInj2 e -> Inj2 (read_back sg used e2 e)
+    | VType _,VZero -> Zero
     | _,VNeutral {neu ; _} -> read_back_neutral sg used neu
     | _ -> failwith "Should be caught by type checker - read_back"
 
@@ -117,7 +158,19 @@ and read_back (sg : normal Env.t) (used : String.Set.t) (ty : value) (v : value)
         let case' = read_back sg (String.Set.add used a) (eval_closure3 sg mot (a_val,a_val,VRefl a_val)) (eval_closure sg case a_val) in
         J {mot = (x,y,z,mot') ; case = (a,case') ; scrut = read_back_neutral sg used scrut}
 
+      | NCase {mot ; case1 ; case2 ; left ; right ; scrut} ->
+        let x = freshen used (closure_name mot) in
+        let a = freshen used (closure_name case1) in
+        let b = freshen used (closure_name case2) in
+        let x_val = VNeutral {ty = VSum (left,right) ; neu = NVar x} in
+        let a_val = VNeutral {ty = left ; neu = NVar a} in
+        let b_val = VNeutral {ty = right ; neu = NVar b} in
+        let mot' = read_back sg (String.Set.add used x) (VType Omega) (eval_closure sg mot x_val) in
+        let case1' = read_back sg (String.Set.add used a) (eval_closure sg mot (VInj1 a_val)) (eval_closure sg case1 a_val) in
+        let case2' = read_back sg (String.Set.add used b) (eval_closure sg mot (VInj2 b_val)) (eval_closure sg case2 b_val) in
+        Case {mot = (x,mot') ; case1 = (a,case1') ; case2 = (b,case2') ; scrut = read_back_neutral sg used scrut}
 
+      | NZeroInd {mot ; scrut} -> ZeroInd {mot = read_back sg used (VType Omega) mot ; scrut = read_back_neutral sg used scrut}
 
   and read_back_normal (sg : normal Env.t) (used : String.Set.t) ({tm ; ty} : normal) : term =
     read_back sg used ty tm

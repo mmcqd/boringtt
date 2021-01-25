@@ -32,9 +32,7 @@ module Env = String.Map
 let (++) env (key,data) = Env.set env ~key ~data
 
 type 'a binder = ident * 'a
-  [@@deriving show]
 type 'a binder3 = ident * ident * ident * 'a
-  [@@deriving show]
 
 type term = 
   | Var of ident
@@ -54,16 +52,12 @@ type term =
   | Refl of term
   | J of {mot : term binder3 ; case : term binder ; scrut : term }
   | Meta of {id : int ; mutable sol : term option}
-  [@@deriving show]
-(*
   | Sum of term * term
   | Inj1 of term
   | Inj2 of term
   | Case of {mot : term binder ; case1 : term binder ; case2 : term binder ; scrut : term}
   | Zero
   | ZeroInd of {mot : term ; scrut : term}
-  | Meta of int
-*)
 
 (* Disabling warning 30 so I can have two record types with duplicate field names, perhaps sus *)
 [@@@ocaml.warning "-30"]
@@ -78,13 +72,10 @@ type value =
   | VUnit
   | VId of value * value * value
   | VRefl of value
-(*
   | VSum of value * value
   | VInj1 of value
   | VInj2 of value
-  | VId of value * value * value
-  | VRefl of value
-  | VZero *)
+  | VZero
 
 
 and neutral = 
@@ -93,6 +84,8 @@ and neutral =
   | NProj1 of neutral
   | NProj2 of neutral
   | NJ of {mot : closure3 ; case : closure ; left : value ; right : value ; ty : value ; scrut : neutral}
+  | NCase of {mot : closure ; case1 : closure ; case2 : closure ; left : value ; right : value ; scrut : neutral}
+  | NZeroInd of {mot : value ; scrut : neutral}
 
 and closure = {env : value Env.t ; name : ident ; body : term}
 
@@ -110,7 +103,9 @@ let closure_name {name ; _} = name
 let closure3_names {names ; _} = names
 
 let rec freshen used x =
-  if String.Set.mem used x then freshen used (x ^ "'") else x
+  match x with
+    | "_" -> "_"
+    | _ -> if String.Set.mem used x then freshen used (x ^ "'") else x
 
 let freshen3 used (x,y,z) = 
   let x = freshen used x in
@@ -139,6 +134,12 @@ let rec_map_term (f : term -> term) (e : term) : term =
     | Id (t,e1,e2) -> Id (f t,f e1,f e2)
     | Refl e -> Refl (f e)
     | J {mot = (x,y,z,mot) ; case = (a,case) ; scrut} -> J {mot = (x,y,z,f mot) ; case = (a,f case) ; scrut = f scrut}
+    | Sum (e1,e2) -> Sum (f e1, f e2)
+    | Inj1 e -> Inj1 (f e)
+    | Inj2 e -> Inj2 (f e)
+    | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} -> Case {mot = (x,f mot) ; case1 = (a,f case1) ; case2 = (b,f case2) ; scrut = f scrut}
+    | Zero -> Zero
+    | ZeroInd {mot ; scrut} -> ZeroInd {mot = f mot ; scrut = f scrut}
     | Meta {id ; sol} -> Meta {id ; sol = Option.map ~f sol}
 
 let rec bottom_up (f : term -> term) (e : term) : term = e |> rec_map_term (bottom_up f) |> f
@@ -161,7 +162,9 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
         end
       | Lift (x,i),Lift (y,j) -> i = j && String.equal x y
       | App (e1,e2),App (e1',e2') 
-      | Pair (e1,e2), Pair (e1',e2') ->
+      | Pair (e1,e2), Pair (e1',e2') 
+      | Sum (e1,e2), Sum (e1',e2') 
+      | ZeroInd {mot = e1 ; scrut = e2}, ZeroInd {mot = e1' ; scrut = e2'} ->
         go i g1 e1 g2 e1' && go i g1 e2 g2 e2'
       | Lam (x,e), Lam (y,e') ->
         go (i+1) (g1 ++ (x,i)) e (g2 ++ (y,i)) e'
@@ -173,7 +176,9 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
         go i g1 e g2 e' && go i g1 t g2 t'
       | Proj1 e, Proj1 e' 
       | Proj2 e, Proj2 e' 
-      | Refl e, Refl e' ->
+      | Refl e, Refl e' 
+      | Inj1 e, Inj1 e'
+      | Inj2 e, Inj2 e' ->
         go i g1 e g2 e' 
       | Id (t,e1,e2), Id (t',e1',e2') ->
         go i g1 t g2 t' && go i g1 e1 g2 e1' && go i g1 e2 g2 e2'
@@ -181,7 +186,12 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
         go (i+3) (g1 ++ (x,i) ++ (y,i) ++ (z,i)) mot (g2 ++ (x',i) ++ (y',i) ++ (z',i)) mot' &&
         go (i+1) (g1 ++ (a,i)) case (g2 ++ (a',i)) case' &&
         go i g1 scrut g2 scrut'
-      | One,One | Unit,Unit -> true
+      | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut = scrut}, Case {mot = (x',mot') ; case1 = (a',case1') ; case2 = (b',case2') ; scrut = scrut'} ->
+        go (i+1) (g1 ++ (x,i)) mot (g2 ++ (x',i)) mot' &&
+        go (i+1) (g1 ++ (a,i)) case1 (g2 ++ (a',i)) case1' &&
+        go (i+1) (g1 ++ (b,i)) case2 (g2 ++ (b',i)) case2' &&
+        go i g1 scrut g2 scrut'
+      | One,One | Unit,Unit | Zero,Zero -> true
       | Meta {sol = Some e ; _}, Meta {sol = Some e'; _} -> go i g1 e g2 e'
       | Meta {sol = None; id = id},Meta {sol = None; id = id'} -> id = id'
       | _ -> false
@@ -205,10 +215,15 @@ let rec pp_term (e : term) : string =
     | App (e1,e2) -> sprintf "%s %s" (pp_term e1) (pp_term e2)
     | Sg (t,("_",e)) -> sprintf "%s * %s" (pp_term t) (pp_term e)
     | Sg (t,(x,e)) -> sprintf "[%s : %s] * %s" x (pp_term t) (pp_term e)
-    | Pair (e1,e2) -> sprintf "%s,%s" (pp_term e1) (pp_term e2)
+    | Pair (e1,e2) -> sprintf "(%s, %s)" (pp_term e1) (pp_term e2)
     | Id (t,e1,e2) -> sprintf "Id %s %s %s" (pp_atomic t) (pp_atomic e1) (pp_atomic e2)
     | J {mot = (x,y,z,mot) ; case = (a,case) ; scrut} -> 
       sprintf "match %s at %s %s %s => %s with refl %s => %s" (pp_term scrut) x y z (pp_term mot) a (pp_term case)
+    | Sum (e1,e2) -> sprintf "%s + %s" (pp_term e1) (pp_term e2)
+    | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} ->
+      sprintf "match %s at %s => %s with 1.%s => %s | 2.%s => %s" (pp_term scrut) x (pp_term mot) a (pp_term case1) b (pp_term case2)
+    | ZeroInd {mot ; scrut} -> 
+      sprintf "match %s at %s" (pp_term scrut) (pp_term mot)
     | Meta {sol = Some e; _} -> pp_term e
     | _ -> pp_atomic e
 
@@ -222,8 +237,11 @@ and pp_atomic (e : term) : string =
     | Type (Const i) -> sprintf "Type^%i" i
     | One -> "One"
     | Unit -> "<>"
+    | Zero -> "Zero"
     | Proj1 e -> sprintf "%s.1" (pp_atomic e)
     | Proj2 e -> sprintf "%s.2" (pp_atomic e)
+    | Inj1 e -> sprintf "1.%s" (pp_atomic e)
+    | Inj2 e -> sprintf "2.%s" (pp_atomic e)
     | Ascribe (e,t) -> sprintf "(%s : %s)" (pp_term e) (pp_term t)
     | Refl e -> sprintf "refl %s" (pp_atomic e)
     | _ -> paren (pp_term e)

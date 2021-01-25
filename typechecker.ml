@@ -62,6 +62,26 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
 
         | t -> raise @@ TypeError (sprintf "%s has type %s, it is not an equality proof, it cannot be matched on" (pp_term scrut) (pp_ty sg ctx t))
       end
+    | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} ->
+      begin
+      match synth sg ctx scrut with
+        | VSum (e1,e2) -> 
+          let env = to_env ctx in
+          let a_val = VNeutral {ty = e1 ; neu = NVar a} in
+          let b_val = VNeutral {ty = e2 ; neu = NVar b} in    
+          check sg (ctx ++ (x,VSum (e1,e2))) mot (VType Omega);
+          check sg (ctx ++ (a,e1)) case1 (eval sg (env ++ (x,VInj1 a_val)) mot);
+          check sg (ctx ++ (b,e2)) case2 (eval sg (env ++ (x,VInj2 b_val)) mot);
+          eval sg (env ++ (x,eval sg env scrut)) mot
+           
+        | t -> raise @@ TypeError (sprintf "%s has type %s, it is not a sum, it cannot be matched on" (pp_term scrut) (pp_ty sg ctx t))
+      end
+    | ZeroInd {mot ; scrut} ->
+      begin
+      match synth sg ctx scrut with
+        | VZero -> eval sg (to_env ctx) mot
+        | t -> raise @@ TypeError (sprintf "%s has type %s, it is not in Zero, it cannot be matched on" (pp_term scrut) (pp_ty sg ctx t))
+      end
     | Ascribe (e,t) -> 
       check sg ctx t (VType Omega);
       let t' = eval sg (to_env ctx) t in
@@ -88,6 +108,7 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
         check sg ctx e2 (eval_closure sg c (eval sg (to_env ctx) e1)) 
       | One, VType _ -> ()
       | Unit, VOne -> ()
+      | Zero, VType _ -> ()
       | Id (t,e1,e2),VType i ->
         let t' = eval sg (to_env ctx) t in
         check sg ctx t (VType i);
@@ -106,7 +127,7 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
             let e' = read_back sg used t (eval sg (to_env ctx) e) in
             if not @@ alpha_equiv e' e1' then raise @@ TypeError (sprintf "%s and %s are not equal, they cannot be identified" (pp_term e') (pp_term e1'));
         end
-      | J {mot = (x,y,z,Meta ({sol = None;_} as m)); case = _; scrut}, _ ->
+      | J {mot = (x,y,z,Meta ({sol = None;_} as m)); scrut ; _}, _ ->
         begin
         match synth sg ctx scrut with
           | VId (t,e1,e2) ->
@@ -119,6 +140,20 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
             check sg ctx tm ty
           | t -> raise @@ TypeError (sprintf "%s has type %s, it is not an equality proof, it cannot be matched on" (pp_term scrut) (pp_ty sg ctx t))
         end
+      | Sum (e1,e2), VType i ->
+        check sg ctx e1 (VType i);
+        check sg ctx e2 (VType i)
+      | Inj1 e, VSum (e1,_) ->
+        check sg ctx e e1
+      | Inj2 e, VSum (_,e2) ->
+        check sg ctx e e2
+      | Case {mot = (x,Meta ({sol = None; _} as m)) ; scrut ; _},_ ->
+        let mot = replace_term scrut (Var x) (read_back sg (Env.key_set ctx) (VType Omega) ty) in
+        m.sol <- Some mot;
+        check sg ctx tm ty
+      | ZeroInd {mot = Meta ({sol = None; _} as m) ; _},_ ->
+        m.sol <- Some (read_back sg (Env.key_set ctx) (VType Omega) ty);
+        check sg ctx tm ty
       | Meta {sol = Some e;_},_ ->
         check sg ctx e ty
       | _ ->
@@ -141,4 +176,5 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
         sub sg ctx (eval_closure sg c (VNeutral {ty = t ; neu = NVar x})) (eval_closure sg c (VNeutral {ty = t' ; neu = NVar x'}))
       | _ -> false
 
-let synthtype (sg : normal Env.t) (e : term) : value = synth sg Env.empty e
+let synthtype (sg : normal Env.t) (e : term) : value = 
+  synth sg Env.empty e

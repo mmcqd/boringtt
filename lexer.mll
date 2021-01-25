@@ -5,7 +5,7 @@ open Parser
 
 }
 
-let ident = [^ '(' ')' '[' ']' '\\' ':' '*' ',' '=' ' ' '\t' '\n' '.' '^' '_' ';' '|' '+']+
+let ident = [^ '(' ')' '[' ']' '\\' ':' ',' '=' ' ' '\t' '\n' '.' '^' '_' ';' '|' '?']+
 let dec_num = ("0" | ['1'-'9'](['0'-'9']*))
 
 let whitespace = [' ' '\t' '\r']
@@ -17,6 +17,7 @@ rule initial = parse
   | ')' { R_paren }
   | '[' { L_square }
   | ']' { R_square }
+  | '?' { Question_mark }
   | "fn" | "λ" { Lambda }
   | "->" | "→" { Arrow }
   | "=>" { Thick_arrow }
@@ -29,12 +30,16 @@ rule initial = parse
   | ".2" { DotTwo }
   | "One" | "⊤" { One }
   | "<>"  { Unit }
+  | "Zero" | "⊥" { Zero }
   | "Type" { Type }
   | "let" { Let }
   | "=" { Equal }
   | '|' { Bar }
   | "Id" { Id }
   | "refl" { Refl }
+  | '+' { Plus }
+  | "1." { OneDot }
+  | "2." { TwoDot }
   | "match" { Match }
   | "at" { At }
   | "with" { With }
@@ -47,12 +52,6 @@ rule initial = parse
   | _ as x { failwith ("illegal char: " ^ (Char.to_string x)) }
 
 (*
-
-  | '+' { T.Plus }
-
-  | "1." { T.OneDot }
-  | "2." { T.TwoDot }
-  | "Zero" | "⊥" { T.Zero }
   | "postulate" { T.Postulate }
 *)
 
