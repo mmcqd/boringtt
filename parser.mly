@@ -61,7 +61,7 @@ let init := ~ = nonempty_list(stm); Eof; <>
 let stm := 
   | Let; ~ = bound_name; Equal; ~ = term; <Ast.Decl>
   | Let; x = bound_name; Colon; t = term; Equal; e = term; { Ast.Decl (x, Ast.Ascribe (e,t)) } 
-  | Let; x = bound_name; args = nonempty_list(square(annot_args)); Colon; t = term; Equal; e = term; { Ast.Decl (x,func_syntax (args,t,e)) }
+  | Let; x = bound_name; args = nonempty_list(paren(annot_args)); Colon; t = term; Equal; e = term; { Ast.Decl (x,func_syntax (args,t,e)) }
   | ~ = term; <Ast.Eval>
 
 let bound_name :=
@@ -90,9 +90,9 @@ let atomic :=
 let term :=
   | e1 = atomic; args = list(atomic); { app_fold (e1,args) }
   | Lambda; ~ = nonempty_list(bound_name); Thick_arrow; ~ = term; <arg_fold>
-  | args = nonempty_list(square(annot_args)); Arrow; e = term; { multi_annot_arg_fold (fun x -> Ast.Pi x) (args,e) }
+  | args = nonempty_list(paren(annot_args)); Arrow; e = term; { multi_annot_arg_fold (fun x -> Ast.Pi x) (args,e) }
   | t1 = term; Arrow; t2 = term; { Ast.Pi (t1,("_",t2)) }
-  | args = nonempty_list(square(annot_args)); Star; e = term; { multi_annot_arg_fold (fun x -> Ast.Sg x) (args,e) }
+  | args = nonempty_list(paren(annot_args)); Star; e = term; { multi_annot_arg_fold (fun x -> Ast.Sg x) (args,e) }
   | t1 = term; Star; t2 = term; { Ast.Sg (t1,("_",t2)) }
   | t1 = term; Plus; t2 = term; { Ast.Sum (t1,t2) }
 

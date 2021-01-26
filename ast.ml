@@ -58,6 +58,7 @@ type term =
   | Case of {mot : term binder ; case1 : term binder ; case2 : term binder ; scrut : term}
   | Zero
   | ZeroInd of {mot : term ; scrut : term}
+  (* | Map of {funct : term binder ; map : term binder ; target : term} *)
 
 (* Disabling warning 30 so I can have two record types with duplicate field names, perhaps sus *)
 [@@@ocaml.warning "-30"]
@@ -86,6 +87,7 @@ and neutral =
   | NJ of {mot : closure3 ; case : closure ; left : value ; right : value ; ty : value ; scrut : neutral}
   | NCase of {mot : closure ; case1 : closure ; case2 : closure ; left : value ; right : value ; scrut : neutral}
   | NZeroInd of {mot : value ; scrut : neutral}
+  (* | NMap of {funct : closure ; map : closure ; target : neutral } *)
 
 and closure = {env : value Env.t ; name : ident ; body : term}
 
@@ -140,6 +142,7 @@ let rec_map_term (f : term -> term) (e : term) : term =
     | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} -> Case {mot = (x,f mot) ; case1 = (a,f case1) ; case2 = (b,f case2) ; scrut = f scrut}
     | Zero -> Zero
     | ZeroInd {mot ; scrut} -> ZeroInd {mot = f mot ; scrut = f scrut}
+    (* | Map {funct = (x,g) ; map = (y,m) ; target} -> Map {funct = (x,f g) ; map = (y,f m) ; target = f target} *)
     | Meta {id ; sol} -> Meta {id ; sol = Option.map ~f sol}
 
 let rec bottom_up (f : term -> term) (e : term) : term = e |> rec_map_term (bottom_up f) |> f
@@ -192,6 +195,10 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
         go (i+1) (g1 ++ (b,i)) case2 (g2 ++ (b',i)) case2' &&
         go i g1 scrut g2 scrut'
       | One,One | Unit,Unit | Zero,Zero -> true
+      (* | Map {funct = (x,f) ; map = (y,m) ; target = t}, Map {funct = (x',f') ; map = (y',m') ; target = t'} ->
+        go (i+1) (g1 ++ (x,i)) f (g2 ++ (x',i)) f' &&
+        go (i+1) (g1 ++ (y,i)) m (g2 ++ (y',i)) m' &&
+        go i g1 t g2 t' *)
       | Meta {sol = Some e ; _}, Meta {sol = Some e'; _} -> go i g1 e g2 e'
       | Meta {sol = None; id = id},Meta {sol = None; id = id'} -> id = id'
       | _ -> false
@@ -209,12 +216,12 @@ let rec pp_term (e : term) : string =
     | Lam (x,e) -> sprintf "fn %s => %s" x (pp_term e)
     | Pi (Pi _ as t,("_",e)) -> sprintf "(%s) -> %s" (pp_term t) (pp_term e)
     | Pi (t,("_",e)) -> sprintf "%s -> %s" (pp_term t) (pp_term e)
-    | Pi (t,(x,e)) -> sprintf "[%s : %s] -> %s" x (pp_term t) (pp_term e)
+    | Pi (t,(x,e)) -> sprintf "(%s : %s) -> %s" x (pp_term t) (pp_term e)
     | App (Lam _ as e1,e2) -> sprintf "(%s) %s" (pp_term e1) (pp_term e2)
     | App (e1,(App _ as e2)) -> sprintf "%s (%s)" (pp_term e1) (pp_term e2)
     | App (e1,e2) -> sprintf "%s %s" (pp_term e1) (pp_term e2)
     | Sg (t,("_",e)) -> sprintf "%s * %s" (pp_term t) (pp_term e)
-    | Sg (t,(x,e)) -> sprintf "[%s : %s] * %s" x (pp_term t) (pp_term e)
+    | Sg (t,(x,e)) -> sprintf "(%s : %s) * %s" x (pp_term t) (pp_term e)
     | Pair (e1,e2) -> sprintf "(%s, %s)" (pp_term e1) (pp_term e2)
     | Id (t,e1,e2) -> sprintf "Id %s %s %s" (pp_atomic t) (pp_atomic e1) (pp_atomic e2)
     | J {mot = (x,y,z,mot) ; case = (a,case) ; scrut} -> 
@@ -224,6 +231,8 @@ let rec pp_term (e : term) : string =
       sprintf "match %s at %s => %s with 1.%s => %s | 2.%s => %s" (pp_term scrut) x (pp_term mot) a (pp_term case1) b (pp_term case2)
     | ZeroInd {mot ; scrut} -> 
       sprintf "match %s at %s" (pp_term scrut) (pp_term mot)
+    (* | Map {funct = (x,f) ; map = (y,m) ; target} -> 
+      sprintf "map %s at %s => %s with %s => %s" (pp_term target) x (pp_term f) y (pp_term m) *)
     | Meta {sol = Some e; _} -> pp_term e
     | _ -> pp_atomic e
 
@@ -234,6 +243,7 @@ and pp_atomic (e : term) : string =
     | Meta {sol = None ; id} -> sprintf "_%i" id
     | Lift (x,i) -> sprintf "%s^%i" x i
     | Type Omega -> "TypeOmega"
+    | Type (Const 0) -> "Type"
     | Type (Const i) -> sprintf "Type^%i" i
     | One -> "One"
     | Unit -> "<>"

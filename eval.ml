@@ -20,25 +20,26 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
     | Pi (t,(name,body)) -> VPi (eval sg env t,{env ; name ; body})
     | Type i -> VType i
     | Ascribe (e,_) -> eval sg env e
-    | App (e1,e2) -> app sg (eval sg env e1) (eval sg env e2)
+    | App (e1,e2) -> do_app sg (eval sg env e1) (eval sg env e2)
     | Sg (t,(name,body)) -> VSg (eval sg env t,{env ; name ; body})
     | Pair (e1,e2) -> VPair (eval sg env e1, eval sg env e2)
-    | Proj1 e -> proj1 sg (eval sg env e)
-    | Proj2 e -> proj2 sg (eval sg env e)
+    | Proj1 e -> do_proj1 sg (eval sg env e)
+    | Proj2 e -> do_proj2 sg (eval sg env e)
     | Id (t,e1,e2) -> VId (eval sg env t,eval sg env e1, eval sg env e2)
     | Refl e -> VRefl (eval sg env e)
-    | J {mot ; case ; scrut} -> j sg env mot case (eval sg env scrut)
+    | J {mot ; case ; scrut} -> do_j sg env mot case (eval sg env scrut)
     | Meta {sol = Some e;_} -> eval sg env e
     | Sum (e1,e2) -> VSum (eval sg env e1, eval sg env e2)
     | Inj1 e -> VInj1 (eval sg env e)
     | Inj2 e -> VInj2 (eval sg env e)
     | Case {mot ; case1 ; case2 ; scrut} ->
-      case sg env mot case1 case2 (eval sg env scrut)
+      do_case sg env mot case1 case2 (eval sg env scrut)
     | Zero -> VZero
-    | ZeroInd {mot ; scrut} -> zero_ind (eval sg env mot) (eval sg env scrut)
+    | ZeroInd {mot ; scrut} -> do_zero_ind (eval sg env mot) (eval sg env scrut)
+    (* | Map {funct ; map ; target} -> do_map sg env funct map (eval sg env target) *)
     | Meta {sol = None; _} -> failwith "Usolved Meta-Var"
 
-  and app (sg : normal Env.t) (v1 : value) (v2 : value) : value =
+  and do_app (sg : normal Env.t) (v1 : value) (v2 : value) : value =
     match v1 with
       | VLam c -> eval_closure sg c v2
       | VNeutral {ty = VPi (t,c) ; neu} ->
@@ -47,21 +48,21 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
       | _ -> failwith "Should be caught by type checker - app"
 
  
-  and proj1 (_ : normal Env.t) (v : value) : value =
+  and do_proj1 (_ : normal Env.t) (v : value) : value =
     match v with
       | VPair (e,_) -> e
       | VNeutral {ty = VSg (t,_) ; neu} ->
         VNeutral {ty = t ; neu = NProj1 neu}
       | _ -> failwith "Should be caught by type checker - proj1"
 
-  and proj2 (sg : normal Env.t) (v : value) : value =
+  and do_proj2 (sg : normal Env.t) (v : value) : value =
     match v with
       | VPair (_,e) -> e
       | VNeutral {ty = VSg (_,c) ; neu} ->
-        VNeutral {ty = eval_closure sg c (proj1 sg v) ; neu = NProj2 neu}
+        VNeutral {ty = eval_closure sg c (do_proj1 sg v) ; neu = NProj2 neu}
       | _ -> failwith "Should be caught by type checker - proj2"
 
-  and j (sg : normal Env.t) (env : value Env.t) ((x,y,z,mot) : term binder3) ((a,case) : term binder) (scrut : value) : value = 
+  and do_j (sg : normal Env.t) (env : value Env.t) ((x,y,z,mot) : term binder3) ((a,case) : term binder) (scrut : value) : value = 
     match scrut with
       | VRefl v -> eval sg (env ++ (a,v)) case
       | VNeutral {ty = VId (t,e1,e2) ; neu} ->
@@ -76,7 +77,7 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
                   }
       | _ -> failwith "Should be caught by type checker - j"
 
-  and case (sg : normal Env.t) (env : value Env.t) ((x,mot) : term binder) ((a,case1) : term binder) ((b,case2) : term binder) (scrut : value) : value =
+  and do_case (sg : normal Env.t) (env : value Env.t) ((x,mot) : term binder) ((a,case1) : term binder) ((b,case2) : term binder) (scrut : value) : value =
     match scrut with
       | VInj1 e -> eval sg (env ++ (a,e)) case1
       | VInj2 e -> eval sg (env ++ (b,e)) case2
@@ -92,11 +93,20 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
                   }
       | _ -> failwith "Should be caught by type checker - case"
 
-  and zero_ind (mot : value) (scrut : value) =
+  and do_zero_ind (mot : value) (scrut : value) =
     match scrut with
       | VNeutral {ty = VZero ; neu} ->
         VNeutral {ty = mot ; neu = NZeroInd {mot = mot ; scrut = neu}}
       | _ -> failwith "Should be caught by type checker - zero_ind"
+
+  (* and do_map (sg : normal Env.t) (env : value Env.t) ((x,f) : term binder) ((y,m) : term binder) (target : value) : value =
+    let x = freshen (Env.key_set env) x in
+    let x_val = VNeutral {ty = VType (Const 0) ; neu = NVar x} in
+    let f' = eval sg (env ++ (x,x_val)) f in
+    match f' with
+      | VOne -> target
+      | VNeutral {neu = NVar z ; _} when String.equal x z -> eval sg (env ++ (y,target)) m
+      | VZero -> ZeroInd *)
 
   and eval_closure (sg : normal Env.t) ({env ; name ; body} : closure) (v : value) : value =
     eval sg (env ++ (name,v)) body
@@ -118,18 +128,18 @@ and read_back (sg : normal Env.t) (used : String.Set.t) (ty : value) (v : value)
     | VPi (t,({name = "_" ; _} as c)), (VLam c' as f) ->
       let x = freshen used (closure_name c') in
       let x_val = VNeutral {neu = NVar x ; ty = t} in
-      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
+      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (do_app sg f x_val))
     | VPi (t,({name = "_" ; _} as c)), f ->
       let x = freshen used "x" in
       let x_val = VNeutral {neu = NVar x ; ty = t} in
-      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
+      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (do_app sg f x_val))
     | VPi (t,c), f ->
       let x = freshen used (closure_name c) in
       let x_val = VNeutral {neu = NVar x ; ty = t} in
-      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (app sg f x_val))
+      Lam (x,read_back sg (String.Set.add used x) (eval_closure sg c x_val) (do_app sg f x_val))
     | VSg (t,c), p ->
-      let p1 = proj1 sg p in
-      Pair (read_back sg used t p1, read_back sg used (eval_closure sg c p1) (proj2 sg p))
+      let p1 = do_proj1 sg p in
+      Pair (read_back sg used t p1, read_back sg used (eval_closure sg c p1) (do_proj2 sg p))
     | VType _, VOne -> One
     | VOne, _ -> Unit
     | VType i,VId (t,e1,e2) -> Id (read_back sg used (VType i) t,read_back sg used t e1, read_back sg used t e2)

@@ -43,7 +43,7 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
     | Proj2 e -> 
       begin
       match synth sg ctx e with
-        | VSg (_,c) -> eval_closure sg c (proj1 sg (eval sg (to_env ctx) e))
+        | VSg (_,c) -> eval_closure sg c (do_proj1 sg (eval sg (to_env ctx) e))
         | t -> raise @@ TypeError (sprintf "%s has type %s, it is not a pair, it cannot be projected from" (pp_term e) (pp_ty sg ctx t))
       end
 
@@ -95,7 +95,9 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
     match tm,ty with
       | Meta {sol = None;_},_ ->
         let ctx' = Env.map ctx ~f:(read_back sg (Env.key_set ctx) (VType Omega)) in
-        raise @@ Unsolved (sprintf "Context:%s\n\nGoal:\n  %s" (pp_context ctx') (pp_ty sg ctx ty))
+        let ty = pp_ty sg ctx ty in
+        (* let l = String.length ty in *)
+        raise @@ Unsolved (sprintf "Context:%s\n\n%s\n  %s" (pp_context ctx') (String.init ~f:(const '-') 45) ty)
         
       | Type i,VType j -> if not @@ level_lt i j then raise @@ TypeError (sprintf "%s too large to be contained in %s" (pp_term tm) (pp_ty sg ctx ty))
       | (Pi (t,(x,e)) | Sg (t,(x,e))),VType i ->
