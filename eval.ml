@@ -36,7 +36,7 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
       do_case sg env mot case1 case2 (eval sg env scrut)
     | Zero -> VZero
     | ZeroInd {mot ; scrut} -> do_zero_ind (eval sg env mot) (eval sg env scrut)
-    (* | Map {funct ; map ; target} -> do_map sg env funct map (eval sg env target) *)
+    | Let (e1,(x,e2)) -> eval sg (env ++ (x,eval sg env e1)) e2
     | Meta {sol = None; _} -> failwith "Usolved Meta-Var"
 
   and do_app (sg : normal Env.t) (v1 : value) (v2 : value) : value =
@@ -99,14 +99,6 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
         VNeutral {ty = mot ; neu = NZeroInd {mot = mot ; scrut = neu}}
       | _ -> failwith "Should be caught by type checker - zero_ind"
 
-  (* and do_map (sg : normal Env.t) (env : value Env.t) ((x,f) : term binder) ((y,m) : term binder) (target : value) : value =
-    let x = freshen (Env.key_set env) x in
-    let x_val = VNeutral {ty = VType (Const 0) ; neu = NVar x} in
-    let f' = eval sg (env ++ (x,x_val)) f in
-    match f' with
-      | VOne -> target
-      | VNeutral {neu = NVar z ; _} when String.equal x z -> eval sg (env ++ (y,target)) m
-      | VZero -> ZeroInd *)
 
   and eval_closure (sg : normal Env.t) ({env ; name ; body} : closure) (v : value) : value =
     eval sg (env ++ (name,v)) body

@@ -15,8 +15,6 @@ rule initial = parse
   | '\n' { Lexing.new_line lexbuf; initial lexbuf }
   | '(' { L_paren }
   | ')' { R_paren }
-  | '[' { L_square }
-  | ']' { R_square }
   | '?' { Question_mark }
   | "fn" | "λ" { Lambda }
   | "->" | "→" { Arrow }
@@ -32,7 +30,9 @@ rule initial = parse
   | "<>"  { Unit }
   | "Zero" | "⊥" | "𝟘" { Zero }
   | "Type" { Type }
+  | "def" { Def }
   | "let" { Let }
+  | "in" { In }
   | "=" { Equal }
   | '|' { Bar }
   | "Id" { Id }

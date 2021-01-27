@@ -26,7 +26,7 @@ let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.App (x,e))
 %}
 
 %token Eof
-%token L_paren R_paren L_square R_square
+%token L_paren R_paren
 %token Lambda Thick_arrow Arrow
 %token Comma DotOne DotTwo Star
 %token One Unit
@@ -36,7 +36,8 @@ let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.App (x,e))
 %token Type Caret
 %token Colon
 %token Underbar Question_mark
-%token Let Equal
+%token Def Equal
+%token Let In
 %token <string> Ident
 %token <int> Dec_const
 
@@ -53,20 +54,22 @@ let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.App (x,e))
 %%
 
 let paren(x) == L_paren; ~ = x; R_paren; <>
-let square(x) == L_square; ~ = x; R_square; <>
 
 let init := ~ = nonempty_list(stm); Eof; <>
 
 
 let stm := 
-  | Let; ~ = bound_name; Equal; ~ = term; <Ast.Decl>
-  | Let; x = bound_name; Colon; t = term; Equal; e = term; { Ast.Decl (x, Ast.Ascribe (e,t)) } 
-  | Let; x = bound_name; args = nonempty_list(paren(annot_args)); Colon; t = term; Equal; e = term; { Ast.Decl (x,func_syntax (args,t,e)) }
+  | Def; ~ = bound_name; Equal; ~ = term; <Ast.Decl>
+  | Def; x = bound_name; Colon; t = term; Equal; e = term; { Ast.Decl (x, Ast.Ascribe (e,t)) } 
+  | Def; x = bound_name; args = nonempty_list(paren(annot_args)); Colon; t = term; Equal; e = term; { Ast.Decl (x,func_syntax (args,t,e)) }
   | ~ = term; <Ast.Eval>
 
 let bound_name :=
   | Ident
   | Underbar; { "_" }
+
+let annot_arg :=
+  | x = bound_name; Colon; t = term; {[x],t}
 
 let annot_args :=
   | ~ = nonempty_list(bound_name) ; Colon ; ~ = term ; <>
@@ -95,11 +98,13 @@ let term :=
   | args = nonempty_list(paren(annot_args)); Star; e = term; { multi_annot_arg_fold (fun x -> Ast.Sg x) (args,e) }
   | t1 = term; Star; t2 = term; { Ast.Sg (t1,("_",t2)) }
   | t1 = term; Plus; t2 = term; { Ast.Sum (t1,t2) }
-
   | e1 = term; Comma; e2 = term; { Ast.Pair (e1,e2) }
   | Refl; ~ = atomic; <Ast.Refl>
   | Refl; { Ast.Refl (fresh_meta ()) }
   | Id; t = atomic; e1 = atomic; e2 = atomic; <Ast.Id>
+
+  | Let; x = bound_name; Equal; e1 = term; In; e2 = term; {Ast.Let (e1,(x,e2)) }
+  | Let; x = bound_name; Colon; t = term; Equal; e1 = term; In; e2 = term; { Ast.Let (Ast.Ascribe (e1,t),(x,e2)) } 
 
   | Match; scrut = term; At; x = bound_name; y = bound_name; z = bound_name; Thick_arrow; mot = term; With;
     option(Bar); Refl; a = bound_name; Thick_arrow; case = term;

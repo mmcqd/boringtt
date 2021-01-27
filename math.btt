@@ -1,147 +1,139 @@
 
 
-let sym (A : Type) (x y : A) (x≡y : Id A x y) : Id A y x =
+def sym (A : Type) (x y : A) (x≡y : Id A x y) : Id A y x =
   match x≡y with
     | refl x => refl
 
-let trans (A : Type) (x y z : A) (x≡y : Id A x y) (y≡z : Id A y z) : Id A x z =
+
+def trans (A : Type) (x y z : A) (x≡y : Id A x y) (y≡z : Id A y z) : Id A x z =
   (match x≡y at x y _ => Id A y z -> Id A x z with
      | refl x => λ eq => eq) y≡z
 
-let coerce (A B : Type) (A≡B : Id Type A B) : A -> B =
+def coerce (A B : Type) (A≡B : Id Type A B) : A -> B =
   match A≡B with
     | refl x => λ x => x
 
-let subst (A : Type) (P : A -> Type) (x y : A) (x≡y : Id A x y) : P x -> P y =
+def subst (A : Type) (P : A -> Type) (x y : A) (x≡y : Id A x y) : P x -> P y =
   match x≡y with
     | refl x => λ x => x
 
-let cong (A B : Type) (f : A -> B) (x y : A) (x≡y : Id A x y) : Id B (f x) (f y) =
+def cong (A B : Type) (f : A -> B) (x y : A) (x≡y : Id A x y) : Id B (f x) (f y) =
   match x≡y with
     | refl x => refl
 
-let coerce-id (A B : Type) (A≡B : Id Type A B) (x y : A) (x≡y : Id A x y) : Id B (coerce A B A≡B x) (coerce A B A≡B y) =
+def coerce-id (A B : Type) (A≡B : Id Type A B) (x y : A) (x≡y : Id A x y) : Id B (coerce A B A≡B x) (coerce A B A≡B y) =
   match x≡y with
     | refl x => refl
 
-let ¬ (A : Type) : Type = A -> ⊥
 
-let ⊥-Ind (P : ⊥ -> Type) (x : ⊥) : P x = match x
+def ¬ (A : Type) : Type = A -> ⊥
 
+def ⊥-Ind (P : ⊥ -> Type) (x : ⊥) : P x = match x
   
-let 𝟚 : Type = 𝟙 + 𝟙
-let Bool : Type = 𝟚
-let tt : Bool = 1.<>
-let ff : Bool = 2.<>
-let Bool-Ind (P : Bool -> Type) (t : P tt) (f : P ff) (b : Bool) : P b =
+def 𝟚 : Type = 𝟙 + 𝟙
+def Bool : Type = 𝟚
+def tt : Bool = 1.<>
+def ff : Bool = 2.<>
+def Bool-Ind (P : Bool -> Type) (t : P tt) (f : P ff) (b : Bool) : P b = 
   match b with
     | 1._ => t
     | 2._ => f
 
-let if (A : Type) (b : Bool) (t : A) (f : A) : A =
+
+def if (A : Type) (b : Bool) (t : A) (f : A) : A =
   Bool-Ind (λ _ => A) t f b 
 
-let ¬tt≡ff : ¬ (Id Bool tt ff) =
+def ¬tt≡ff : ¬ (Id Bool tt ff) =
   λ tt≡ff => subst Bool (λ b => if^1 Type b 𝟙 𝟘) tt ff tt≡ff <>
 
-let not (b : Bool) : Bool = if Bool b ff tt
+def not (b : Bool) : Bool = if Bool b ff tt
 
-let and (b1 b2 : Bool) : Bool =
+def and (b1 b2 : Bool) : Bool =
   if Bool b1 b2 ff
 
-let or (b1 b2 : Bool) : Bool =
+def or (b1 b2 : Bool) : Bool =
   if Bool b1 tt b2
 
-let not-id (b : Bool) : Id Bool b (not (not b)) = 
+def not-id (b : Bool) : Id Bool b (not (not b)) = 
   match b with
     | 1.x => refl
     | 2.x => refl 
 
 
-let de-morgan1 (p q : Bool) : Id Bool (not (or p q)) (and (not p) (not q)) =
+def de-morgan1 (p q : Bool) : Id Bool (not (or p q)) (and (not p) (not q)) =
   match p with
-    | 1.x => 
-      match q with
-        | 1.y => refl
-        | 2.y => refl
+    | 1.x => refl
     | 2.x => 
       match q with
-        | 1.y => refl
-        | 2.y => refl
+        | 1.x => refl
+        | 2.x => refl
 
-let de-morgan2 (p q : Bool) : Id Bool (not (and p q)) (or (not p) (not q)) =
+def de-morgan2 (p q : Bool) : Id Bool (not (and p q)) (or (not p) (not q)) =
   match p with
-    | 1.x => 
-      match q with
-        | 1.y => refl
-        | 2.y => refl
-    | 2.x => 
-      match q with
-        | 1.y => refl
-        | 2.y => refl
+    | 1.x => refl
+    | 2.x => refl
 
 
-let Maybe (A : Type) : Type = A + 𝟙
-let some (A : Type) (x : A) : Maybe A = 1.x
-let none (A : Type) : Maybe A = 2.<>
+def Maybe (A : Type) : Type = A + 𝟙
+def some (A : Type) (x : A) : Maybe A = 1.x
+def none (A : Type) : Maybe A = 2.<>
 
-let Maybe-Ind (A : Type) (P : Maybe A -> Type) (s : (x : A) -> P (some A x)) (n : P (none A)) (m : Maybe A) : P m =
+def Maybe-Ind (A : Type) (P : Maybe A -> Type) (s : (x : A) -> P (some A x)) (n : P (none A)) (m : Maybe A) : P m =
   match m with
-    | 1.x => s x
-    | 2._ => n
+    | 1.a => s a
+    | 2.b => n
 
-let maybe (A B : Type) (s : A -> B) (n : B) (m : Maybe A) : B =
+def maybe (A B : Type) (s : A -> B) (n : B) (m : Maybe A) : B =
   Maybe-Ind A (λ _ => B) s n m
 
-let Pointed-Type : Type^1 = (x : Type) × x
+def Pointed-Type : Type^1 = (x : Type) × x
 
-let Pointed-𝟙 : Pointed-Type = (𝟙,<>)
+def Pointed-𝟙 : Pointed-Type = (𝟙,<>)
 
-let Pointed-Type0 : Pointed-Type^1 = (Type,𝟙)
+def Pointed-Type0 : Pointed-Type^1 = (Type,𝟙)
 
-let Pointed-TypeN : Pointed-Type^2 = (Type^1,Type)
+def Pointed-TypeN : Pointed-Type^2 = (Type^1,Type)
 
-let Loop (P : Pointed-Type) : Pointed-Type =
+def Loop (P : Pointed-Type) : Pointed-Type =
   (Id P.1 P.2 P.2 , refl)
 
-let ¬pointed≡⊥ (A : Pointed-Type) : ¬^1 (Id Type A.1 ⊥) =
+def ¬pointed≡⊥ (A : Pointed-Type) : ¬^1 (Id Type A.1 ⊥) =
   λ A≡⊥ => coerce A.1 ⊥ A≡⊥ A.2
 
-let ¬𝟙≡𝟘 : ¬^1 (Id Type 𝟙 𝟘) =
+def ¬𝟙≡𝟘 : ¬^1 (Id Type 𝟙 𝟘) =
   ¬pointed≡⊥ Pointed-𝟙
 
-let Contractible (A : Type) : Type = (x : A) × (y : A) -> Id A x y
+def Contractible (A : Type) : Type = (x : A) × (y : A) -> Id A x y
 
-let 𝟙-Contractible : Contractible 𝟙 =
+def 𝟙-Contractible : Contractible 𝟙 =
   (<> , λ x => refl)
 
-let ⇔ (A B : Type) : Type = (A -> B) × (B -> A)
+def ⇔ (A B : Type) : Type = (A -> B) × (B -> A)
 
-let ≃ (A B : Type) : Type =
-(f : A -> B) × (g : B -> A) × ((x : A) -> Id A x (g (f x))) × ((y : B) -> Id B y (f (g y)))
+def ≃ (A B : Type) : Type =
+(f : A -> B) × (g : B -> A) × ((x : A) -> Id A (g (f x)) x) × ((y : B) -> Id B (f (g y)) y)
 
 
-let swap× (A B : Type) : ≃ (A × B) (B × A) =
+def iso/×-comm (A B : Type) : ≃ (A × B) (B × A) =
   (λ p => p.2 , p.1) ,
   (λ p => p.2 , p.1) ,
   (λ x => refl) ,
   (λ x => refl)
 
-let swap+ (A B : Type) : ≃ (A + B) (B + A) =
-  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
+def iso/+-comm (A B : Type) : ≃ (A + B) (B + A) =
+  (λ s => match s with 1.A boring type theoryx => 2.x | 2.x => 1.x),
   (λ s => match s with 1.x => 2.x | 2.x => 1.x),
   (λ x => match x with 1.x => refl | 2.x => refl),
   (λ x => match x with 1.x => refl | 2.x => refl)
 
 
-let iso1 (A : Type) : ≃ A (A × 𝟙) =
+def iso/×-ident-r (A : Type) : ≃ A (A × 𝟙) =
   (λ x => x , <>) ,
   (λ p => p.1) ,
   (λ x => refl) ,
   (λ p => refl)
 
-
-let iso2 (A : Type) : ≃ A (A + 𝟘) =
+def iso/+-ident-r (A : Type) : ≃ A (A + 𝟘) =
   (λ a => 1.a),
   (λ s => match s with 
     | 1.a => a 
@@ -151,19 +143,25 @@ let iso2 (A : Type) : ≃ A (A + 𝟘) =
       | 1.a => refl
       | 2.b => match b)
 
-let iso3 (A B : Type) : ≃^1 (≃ A B) (≃ B A) =
+def iso/≃-comm (A B : Type) : ≃^1 (≃ A B) (≃ B A) =
   (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
   (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
   (λ x => refl),
   (λ x => refl)
 
-let iso4 (A : Type) : ≃ A (𝟙 -> A) =
+def iso/×-destroy-r (A : Type) : ≃ (A × 𝟘) 𝟘 =
+  (λ p => p.2),
+  (λ v => match v),
+  (λ p => match p.2),
+  (λ v => match v)
+
+def iso/exp-ident-r (A : Type) : ≃ A (𝟙 -> A) =
   (λ a _ => a) ,
   (λ t => t <>) ,
   (λ a => refl) ,
   (λ t => refl)
 
-let iso5 (A : Type) : ≃ (A + A) (𝟚 × A) =
+def iso/sum-mul (A : Type) : ≃ (A + A) (𝟚 × A) =
   (λ s => match s with
     | 1.x => tt,x
     | 2.x => ff,x) ,
@@ -176,12 +174,48 @@ let iso5 (A : Type) : ≃ (A + A) (𝟚 × A) =
     | 2.x => refl)
 
 
+def iso/×-assoc (A B C : Type) : ≃ (A × (B × C)) ((A × B) × C) =
+  (fn x => (x.1,x.2.1),x.2.2),
+  (fn x => (x.1.1,(x.1.2,x.2))),
+  (fn _ => refl),
+  (fn _ => refl)
 
-{-
-let ⊎ (A B : Type) : Type = (b : Bool) × if^1 Type b A B
-let inj₁ (A B : Type) (a : A) : ⊎ A B = (tt , a)
-let inj₂ (A B : Type) (b : B) : ⊎ A B = (ff , b)
+def iso/distrib (A B C : Type) : ≃ (A × (B + C)) ((A × B) + (A × C)) =
+  (λ p => match p.2 with
+    | 1.b => 1.(p.1,b)
+    | 2.c => 2.(p.1,c)),
+  (λ s => match s with
+    | 1.p => p.1,1.(p.2)
+    | 2.p => p.1,2.(p.2)),
+  (λ p => match p.2 with
+    | 1.a => refl
+    | 2.b => refl),
+  (λ s => match s with
+    | 1.p => refl
+    | 2.p => refl)
 
-let ⊎-Ind (A B : Type) (P : ⊎ A B -> Type) (l : (x : A) -> P (inj₁ A B x)) (r : (x : B) -> P (inj₂ A B x)) (x : ⊎ A B) : P x =
-  _
--}
+
+def ≃-trans (A B C : Type) (A2B : ≃ A B) (B2C : ≃ B C) : ≃ A C =
+  (λ a => B2C.1 (A2B.1 a)),
+  (λ c => A2B.2.1 (B2C.2.1 c)),
+  (λ x =>
+    let eq = cong B A A2B.2.1 (B2C.2.1 (B2C.1 (A2B.1 x))) (A2B.1 x) (B2C.2.2.1 (A2B.1 x)) in
+    trans A (A2B.2.1 (B2C.2.1 (B2C.1 (A2B.1 x)))) (A2B.2.1 (A2B.1 x)) x eq (A2B.2.2.1 x)
+  ) ,
+  (λ x =>
+    let eq = cong B C B2C.1 (A2B.1 (A2B.2.1 (B2C.2.1 x))) (B2C.2.1 x) (A2B.2.2.2 (B2C.2.1 x)) in
+    trans C (B2C.1 (A2B.1 (A2B.2.1 (B2C.2.1 x)))) (B2C.1 (B2C.2.1 x)) x eq (B2C.2.2.2 x)
+  )
+
+
+
+def NatF (A : Type) : Type = 𝟙 + A
+
+def NatF-map (A B : Type) (f : A -> B) (x : NatF A) : NatF B =
+  match x with
+    | 1.y => 1.y
+    | 2.y => 2.(f y)
+
+def Functor : Type^1 = (F : Type -> Type) × (A B : Type) -> (A -> B) -> F A -> F B
+
+def Maybe-F : Functor = Maybe, fn A B f x => match x with 1.x => 1.(f x) | 2.x => 2.x

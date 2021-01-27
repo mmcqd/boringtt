@@ -4,6 +4,18 @@ open Eval
 
 exception TypeError of string
 exception Unsolved of string
+exception ParseError of string
+
+let parse_refinement s = 
+  let lexbuf = Lexing.from_string s in
+  try 
+    match Parser.init Lexer.initial lexbuf with
+      | [Eval e] -> e
+      | _ -> raise @@ ParseError "Refinement must be a term"
+  with
+    | _ ->
+      let (s,e) = of_position lexbuf.lex_start_p,of_position lexbuf.lex_curr_p in
+      raise @@ ParseError (sprintf "%s:%s" (show_loc s) (show_loc e))
 
 let pp_ty (sg : normal Env.t) (ctx : value Env.t) (t : value) : string =
   pp_term @@ read_back sg (Env.key_set ctx) (VType Omega) t
@@ -82,6 +94,8 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
         | VZero -> eval sg (to_env ctx) mot
         | t -> raise @@ TypeError (sprintf "%s has type %s, it is not in Zero, it cannot be matched on" (pp_term scrut) (pp_ty sg ctx t))
       end
+    | Let (e1,(x,e2)) ->
+      synth sg (ctx ++ (x,synth sg ctx e1)) e2
     | Ascribe (e,t) -> 
       check sg ctx t (VType Omega);
       let t' = eval sg (to_env ctx) t in
@@ -93,11 +107,19 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
   and check (sg : normal Env.t) (ctx : value Env.t) (tm : term) (ty : value) : unit = 
     (* print_endline @@ "CHECK "^ pp_term tm^" AT "^ (pp_ty sg ctx ty); *)
     match tm,ty with
-      | Meta {sol = None;_},_ ->
+      | Meta ({sol = None;_} as m),_ ->
         let ctx' = Env.map ctx ~f:(read_back sg (Env.key_set ctx) (VType Omega)) in
-        let ty = pp_ty sg ctx ty in
-        (* let l = String.length ty in *)
-        raise @@ Unsolved (sprintf "Context:%s\n\n%s\n  %s" (pp_context ctx') (String.init ~f:(const '-') 45) ty)
+        printf "\nContext:%s\n\n%s\n  %s\n" (pp_context ctx') (String.init ~f:(const '-') 45) (pp_ty sg ctx ty);
+        let rec interactive () =
+          print_string "\nRefinement: ";
+          let txt = Stdlib.read_line () in
+          match txt with
+            | "" -> interactive ()
+            | _ -> 
+            let r = parse_refinement txt in
+            m.sol <- Some r;
+            check sg ctx tm ty
+        in interactive ()
         
       | Type i,VType j -> if not @@ level_lt i j then raise @@ TypeError (sprintf "%s too large to be contained in %s" (pp_term tm) (pp_ty sg ctx ty))
       | (Pi (t,(x,e)) | Sg (t,(x,e))),VType i ->
@@ -156,6 +178,8 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
       | ZeroInd {mot = Meta ({sol = None; _} as m) ; _},_ ->
         m.sol <- Some (read_back sg (Env.key_set ctx) (VType Omega) ty);
         check sg ctx tm ty
+      | Let (e1,(x,e2)),_ ->
+        check sg (ctx ++ (x,synth sg ctx e1)) e2 ty
       | Meta {sol = Some e;_},_ ->
         check sg ctx e ty
       | _ ->
@@ -176,7 +200,22 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
         let x,x' = freshen used (closure_name c),freshen used (closure_name c') in
         sub sg ctx t' t &&
         sub sg ctx (eval_closure sg c (VNeutral {ty = t ; neu = NVar x})) (eval_closure sg c (VNeutral {ty = t' ; neu = NVar x'}))
+      | VSg (t,c),VSg (t',c') -> 
+        let used = Env.key_set ctx in
+        let x,x' = freshen used (closure_name c),freshen used (closure_name c') in
+        sub sg ctx t t' &&
+        sub sg ctx (eval_closure sg c (VNeutral {ty = t ; neu = NVar x})) (eval_closure sg c (VNeutral {ty = t' ; neu = NVar x'}))
+      | VSum (e1,e2),VSum(e1',e2') ->
+        sub sg ctx e1 e1' &&
+        sub sg ctx e2 e2'
+      | VId (t,e1,e2),VId (t',e1',e2') ->
+        sub sg ctx t t' &&
+        alpha_equiv (read_back sg used t e1) (read_back sg used t' e1') &&
+        alpha_equiv (read_back sg used t e2) (read_back sg used t' e2')
       | _ -> false
+
+
+    
 
 let synthtype (sg : normal Env.t) (e : term) : value = 
   synth sg Env.empty e
