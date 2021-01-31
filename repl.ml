@@ -10,7 +10,7 @@ let parse s =
   try Parser.init Lexer.initial lexbuf with
     | _ ->
       let (s,e) = of_position lexbuf.lex_start_p,of_position lexbuf.lex_curr_p in
-      raise @@ ParseError (sprintf "%s:%s" (show_loc s) (show_loc e))
+      raise @@ ParseError (sprintf "%s-%s" (show_loc s) (show_loc e))
 
 let parse_file s =
   let p = Stdlib.open_in s in
@@ -32,10 +32,13 @@ let run_stm sg = function
     let t = synthtype sg e in
     let e' = eval sg Env.empty e in
     let public_t = (match e with Ascribe (_,t) -> t | _ -> read_back sg String.Set.empty (VType Omega) t) in
-    printf "%s : %s\n\n" x (pp_term public_t);
+    printf "def %s : %s\n\n" x (pp_term public_t);
     (* printf "%s = %s\n\n" x (pp_term (read_back sg String.Set.empty t e')); *)
     sg ++ (x, {tm = e' ; ty = t})
-
+  | Axiom (x,t) ->
+    let t' = eval sg Env.empty t in
+    printf "axiom %s : %s\n\n" x (pp_term t);
+    sg ++ (x,{tm = VNeutral {ty = t' ; neu = NVar x} ; ty = t'})
 
 
 let rec repl s = 

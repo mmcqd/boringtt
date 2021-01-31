@@ -1,9 +1,9 @@
 
+def id (A : Type) (x : A) : A = x
 
 def sym (A : Type) (x y : A) (x≡y : Id A x y) : Id A y x =
   match x≡y with
     | refl x => refl
-
 
 def trans (A : Type) (x y z : A) (x≡y : Id A x y) (y≡z : Id A y z) : Id A x z =
   (match x≡y at x y _ => Id A y z -> Id A x z with
@@ -12,6 +12,14 @@ def trans (A : Type) (x y z : A) (x≡y : Id A x y) (y≡z : Id A y z) : Id A x 
 def coerce (A B : Type) (A≡B : Id Type A B) : A -> B =
   match A≡B with
     | refl x => λ x => x
+
+def fam-id (A : Type) (B : A -> Type) (x y : A) (α : Id A x y) : Id Type (B x) (B y) =
+  match α with
+    | refl _ => refl
+
+def dcoerce (A : Type) (B : A -> Type) (x y : A) (x≡y : Id A x y) : B x -> B y =
+  match x≡y with
+    | refl _ => λ x => x
 
 def subst (A : Type) (P : A -> Type) (x y : A) (x≡y : Id A x y) : P x -> P y =
   match x≡y with
@@ -121,7 +129,7 @@ def iso/×-comm (A B : Type) : ≃ (A × B) (B × A) =
   (λ x => refl)
 
 def iso/+-comm (A B : Type) : ≃ (A + B) (B + A) =
-  (λ s => match s with 1.A boring type theoryx => 2.x | 2.x => 1.x),
+  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
   (λ s => match s with 1.x => 2.x | 2.x => 1.x),
   (λ x => match x with 1.x => refl | 2.x => refl),
   (λ x => match x with 1.x => refl | 2.x => refl)
@@ -175,10 +183,10 @@ def iso/sum-mul (A : Type) : ≃ (A + A) (𝟚 × A) =
 
 
 def iso/×-assoc (A B C : Type) : ≃ (A × (B × C)) ((A × B) × C) =
-  (fn x => (x.1,x.2.1),x.2.2),
-  (fn x => (x.1.1,(x.1.2,x.2))),
-  (fn _ => refl),
-  (fn _ => refl)
+  (λ x => (x.1,x.2.1),x.2.2),
+  (λ x => (x.1.1,(x.1.2,x.2))),
+  (λ _ => refl),
+  (λ _ => refl)
 
 def iso/distrib (A B C : Type) : ≃ (A × (B + C)) ((A × B) + (A × C)) =
   (λ p => match p.2 with
@@ -194,6 +202,11 @@ def iso/distrib (A B C : Type) : ≃ (A × (B + C)) ((A × B) + (A × C)) =
     | 1.p => refl
     | 2.p => refl)
 
+def ≃-sym (A B : Type) (A2B : ≃ A B) : ≃ B A =
+  A2B.2.1,
+  A2B.1,
+  A2B.2.2.2,
+  A2B.2.2.1
 
 def ≃-trans (A B C : Type) (A2B : ≃ A B) (B2C : ≃ B C) : ≃ A C =
   (λ a => B2C.1 (A2B.1 a)),
@@ -208,14 +221,30 @@ def ≃-trans (A B C : Type) (A2B : ≃ A B) (B2C : ≃ B C) : ≃ A C =
   )
 
 
-
-def NatF (A : Type) : Type = 𝟙 + A
-
-def NatF-map (A B : Type) (f : A -> B) (x : NatF A) : NatF B =
-  match x with
-    | 1.y => 1.y
-    | 2.y => 2.(f y)
-
 def Functor : Type^1 = (F : Type -> Type) × (A B : Type) -> (A -> B) -> F A -> F B
 
 def Maybe-F : Functor = Maybe, fn A B f x => match x with 1.x => 1.(f x) | 2.x => 2.x
+
+def EM : Type^1 = (A : Type) -> A + ¬ A
+def DNE : Type^1 = (A : Type) -> ¬ (¬ A) -> A
+
+def EM->DNE (em : EM) : DNE = 
+  λ A ¬¬A => match em A with
+    | 1.x => x
+    | 2.x => match ¬¬A x
+
+{-
+def DNE->EM (dne : DNE) : EM =
+  λ A => dne (A + ¬ A) (λ ¬em => ?)
+-}
+
+def pair-ext (A B : Type) (p q : A × B) (α : Id A p.1 q.1) (β : Id B p.2 q.2) : Id (A × B) p q = 
+  match α with
+    | refl _ =>
+      match β with
+        | refl _ => refl
+
+axiom 𝟛 : Type
+axiom aa : 𝟛
+axiom bb : 𝟛
+axiom cc : 𝟛

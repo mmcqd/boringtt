@@ -109,7 +109,7 @@ let rec synth (sg : normal Env.t) (ctx : value Env.t) (tm : term) : value =
     match tm,ty with
       | Meta ({sol = None;_} as m),_ ->
         let ctx' = Env.map ctx ~f:(read_back sg (Env.key_set ctx) (VType Omega)) in
-        printf "\nContext:%s\n\n%s\n  %s\n" (pp_context ctx') (String.init ~f:(const '-') 45) (pp_ty sg ctx ty);
+        printf "\nHole:%s\n\n%s\n  %s\n" (pp_context ctx') (String.init ~f:(const '-') 45) (pp_ty sg ctx ty);
         let rec interactive () =
           print_string "\nRefinement: ";
           let txt = Stdlib.read_line () in

@@ -23,6 +23,7 @@ let func_syntax (xss,t,e) =
 
 let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.App (x,e))
 
+
 %}
 
 %token Eof
@@ -36,7 +37,7 @@ let app_fold (x,xs) = fold_left xs ~init:x ~f:(fun x e -> Ast.App (x,e))
 %token Type Caret
 %token Colon
 %token Underbar Question_mark
-%token Def Equal
+%token Def Equal Axiom
 %token Let In
 %token <string> Ident
 %token <int> Dec_const
@@ -62,6 +63,7 @@ let stm :=
   | Def; ~ = bound_name; Equal; ~ = term; <Ast.Decl>
   | Def; x = bound_name; Colon; t = term; Equal; e = term; { Ast.Decl (x, Ast.Ascribe (e,t)) } 
   | Def; x = bound_name; args = nonempty_list(paren(annot_args)); Colon; t = term; Equal; e = term; { Ast.Decl (x,func_syntax (args,t,e)) }
+  | Axiom; ~ = bound_name; Colon; ~ = term; <Ast.Axiom>
   | ~ = term; <Ast.Eval>
 
 let bound_name :=

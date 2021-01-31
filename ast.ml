@@ -1,17 +1,16 @@
 open Core
 
 type loc = {line : int ; col : int}
-  [@@deriving equal,show]
-
 
 let of_position (pos : Lexing.position) : loc =
   Lexing.{ line = pos.pos_lnum; col = pos.pos_cnum - pos.pos_bol + 1 (* 1-indexed *) }
 
+let show_loc {line ; col} = sprintf "%i:%i" line col
 
 type level =
   | Const of int
   | Omega
-  [@@deriving equal,show]
+  [@@deriving equal]
 
 let level_lt x y =
   match x,y with
@@ -25,7 +24,6 @@ let level_plus x y =
     | _ -> Omega
 
 type ident = string
-  [@@deriving show]
 
 
 module Env = String.Map
@@ -59,7 +57,20 @@ type term =
   | Zero
   | ZeroInd of {mot : term ; scrut : term}
   | Let of (term * term binder)
- 
+(*
+  | Data of {lvl : level ; name : ident ; params : (ident * term) list}
+  | Intro of {cons : ident ; params : (ident * term) list ; args : term list}
+*)
+
+
+(*
+App (App (Intro {cons : "cons" ; params : ("A",Type 0)},Unit),Intro {cons = "nil" ; params = ("A",Type 0)}
+
+
+*)
+
+
+
 (* Disabling warning 30 so I can have two record types with duplicate field names, perhaps sus *)
 [@@@ocaml.warning "-30"]
 type value =
@@ -98,6 +109,7 @@ and normal = {ty : value ; tm : value}
 type stm = 
   | Eval of term
   | Decl of string * term
+  | Axiom of string * term
 
 
 let closure_name {name ; _} = name
@@ -213,16 +225,16 @@ let rec pp_term (e : term) : string =
     | Pi (Pi _ as t,("_",e)) -> sprintf "(%s) -> %s" (pp_term t) (pp_term e)
     | Pi (t,("_",e)) -> sprintf "%s -> %s" (pp_term t) (pp_term e)
     | Pi (t,(x,e)) -> sprintf "(%s : %s) -> %s" x (pp_term t) (pp_term e)
-    | App (Lam _ as e1,e2) -> sprintf "(%s) %s" (pp_term e1) (pp_term e2)
+    | App ((Lam _ | J _ | ZeroInd _ | Case _) as e1,e2) -> sprintf "(%s) %s" (pp_term e1) (pp_term e2)
     | App (e1,(App _ as e2)) -> sprintf "%s (%s)" (pp_term e1) (pp_term e2)
-    | App (e1,e2) -> sprintf "%s %s" (pp_term e1) (pp_term e2)
-    | Sg (t,("_",e)) -> sprintf "%s * %s" (pp_term t) (pp_term e)
-    | Sg (t,(x,e)) -> sprintf "(%s : %s) * %s" x (pp_term t) (pp_term e)
-    | Pair (e1,e2) -> sprintf "(%s, %s)" (pp_term e1) (pp_term e2)
+    | App (e1,e2) -> sprintf "%s %s" (pp_term e1) (pp_atomic e2)
+    | Sg (t,("_",e)) -> sprintf "%s * %s" (pp_atomic t) (pp_atomic e)
+    | Sg (t,(x,e)) -> sprintf "(%s : %s) * %s" x (pp_term t) (pp_atomic e)
+    | Pair (e1,e2) -> sprintf "%s, %s" (pp_atomic e1) (pp_atomic e2)
     | Id (t,e1,e2) -> sprintf "Id %s %s %s" (pp_atomic t) (pp_atomic e1) (pp_atomic e2)
     | J {mot = (x,y,z,mot) ; case = (a,case) ; scrut} -> 
       sprintf "match %s at %s %s %s => %s with refl %s => %s" (pp_term scrut) x y z (pp_term mot) a (pp_term case)
-    | Sum (e1,e2) -> sprintf "%s + %s" (pp_term e1) (pp_term e2)
+    | Sum (e1,e2) -> sprintf "%s + %s" (pp_atomic e1) (pp_atomic e2)
     | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} ->
       sprintf "match %s at %s => %s with 1.%s => %s | 2.%s => %s" (pp_term scrut) x (pp_term mot) a (pp_term case1) b (pp_term case2)
     | ZeroInd {mot ; scrut} -> 
@@ -255,3 +267,44 @@ and pp_atomic (e : term) : string =
 let pp_context g = 
   let xs = String.Map.to_alist g in
   List.fold_left xs ~init:"" ~f:(fun s (x,t) -> sprintf "%s\n  %s : %s" s x (pp_term t))
+
+
+(*
+data ℕ : Type =
+  | zero
+  | suc (n : ℕ)
+
+data List (A : Type) : Type =
+  | nil
+  | cons (x : A) (xs : List)
+
+data Sum (A B : Type) : Type =
+  | in1 (a : A)
+  | in2 (b : B)
+
+data Prod (A : Type) (B : A -> Type) : Type = 
+  | pair (fst : A) (snd : B fst)
+
+
+
+
+
+type arg_ty = T of term | Self
+type constructor = {name : ident ; args : (ident * arg_ty) list}
+type desc = {lvl : level ; name : ident ; params : (ident * term) list ; constructors : constructor list}
+
+let nat = { 
+            lvl = Const 0 ; 
+            name = "nat" ; 
+            params = [] ; 
+            constructors = [{name = "zero" ; args = []} ; {name = "suc" ; args = [("n",Self)]}]
+          }
+
+let list = {
+             lvl = Const 0;
+             name = "list";
+             params = [("A",Type (Const 0))];
+             constructors = [{name = "nil"; args = []} ; {name = "cons" ; args = [("x",T (Var "A"));("xs",Self)]}]
+           }
+
+*)

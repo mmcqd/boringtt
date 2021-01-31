@@ -43,6 +43,7 @@ rule initial = parse
   | "match" { Match }
   | "at" { At }
   | "with" { With }
+  | "axiom" { Axiom }
   | dec_num as d { Dec_const (Int.of_string d) }
   | "{-" { comment 1 lexbuf }
   | "-}" { failwith "Unbalanced comments" }
