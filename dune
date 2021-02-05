@@ -1,7 +1,7 @@
 (executable
   (name repl)
   (libraries core)
-  (preprocess (pps ppx_jane)))
+  (preprocess (pps ppx_deriving.std ppx_jane)))
 
 (ocamllex 
   (modules lexer))

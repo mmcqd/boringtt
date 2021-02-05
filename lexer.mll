@@ -27,7 +27,6 @@ rule initial = parse
   | ".1" { DotOne }
   | ".2" { DotTwo }
   | "One" | "⊤" | "𝟙" { One }
-  | "<>"  { Unit }
   | "Zero" | "⊥" | "𝟘" { Zero }
   | "Type" { Type }
   | "def" { Def }
@@ -52,9 +51,6 @@ rule initial = parse
   | eof { Eof }
   | _ as x { failwith ("illegal char: " ^ (Char.to_string x)) }
 
-(*
-  | "postulate" { T.Postulate }
-*)
 
 and comment nesting = parse
   | '\n' { Lexing.new_line lexbuf; comment nesting lexbuf }

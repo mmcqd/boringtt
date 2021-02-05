@@ -1,47 +1,19 @@
 open Core
+open Env
 
-type loc = {line : int ; col : int}
-
-let of_position (pos : Lexing.position) : loc =
-  Lexing.{ line = pos.pos_lnum; col = pos.pos_cnum - pos.pos_bol + 1 (* 1-indexed *) }
-
-let show_loc {line ; col} = sprintf "%i:%i" line col
-
-type level =
-  | Const of int
-  | Omega
-  [@@deriving equal]
-
-let level_lt x y =
-  match x,y with
-    | Const i,Const j -> i < j
-    | Const _,Omega -> true
-    | Omega,_ -> false
-
-let level_plus x y =
-  match x,y with
-    | Const i, Const j -> Const (i + j)
-    | _ -> Omega
-
-type ident = string
-
-
-module Env = String.Map
-let (++) env (key,data) = Env.set env ~key ~data
-
-type 'a binder = ident * 'a
-type 'a binder3 = ident * ident * ident * 'a
+type ident = Syntax.ident
+type 'a binder = 'a Syntax.binder
+type 'a binder3 = 'a Syntax.binder3
 
 type term = 
   | Var of ident
   | Lift of (ident * int)
-  | Type of level
-  | Pi of (term * term binder)
+  | Type of Level.t
+  | Pi of term * term binder
   | Lam of term binder
-  | App of (term * term)
-  | Ascribe of term * term
-  | Sg of (term * term binder)
-  | Pair of (term * term)
+  | App of term * term
+  | Sg of term * term binder
+  | Pair of term * term
   | Proj1 of term
   | Proj2 of term
   | One
@@ -49,7 +21,6 @@ type term =
   | Id of term * term * term
   | Refl of term
   | J of {mot : term binder3 ; case : term binder ; scrut : term }
-  | Meta of {id : int ; mutable sol : term option}
   | Sum of term * term
   | Inj1 of term
   | Inj2 of term
@@ -57,63 +28,8 @@ type term =
   | Zero
   | ZeroInd of {mot : term ; scrut : term}
   | Let of (term * term binder)
-(*
-  | Data of {lvl : level ; name : ident ; params : (ident * term) list}
-  | Intro of {cons : ident ; params : (ident * term) list ; args : term list}
-*)
 
-
-(*
-App (App (Intro {cons : "cons" ; params : ("A",Type 0)},Unit),Intro {cons = "nil" ; params = ("A",Type 0)}
-
-
-*)
-
-
-
-(* Disabling warning 30 so I can have two record types with duplicate field names, perhaps sus *)
-[@@@ocaml.warning "-30"]
-type value =
-  | VNeutral of {ty : value ; neu : neutral}
-  | VType of level
-  | VPi of value * closure
-  | VLam of closure
-  | VSg of value * closure
-  | VPair of value * value
-  | VOne
-  | VUnit
-  | VId of value * value * value
-  | VRefl of value
-  | VSum of value * value
-  | VInj1 of value
-  | VInj2 of value
-  | VZero
-
-
-and neutral = 
-  | NVar of ident
-  | NApp of neutral * normal
-  | NProj1 of neutral
-  | NProj2 of neutral
-  | NJ of {mot : closure3 ; case : closure ; left : value ; right : value ; ty : value ; scrut : neutral}
-  | NCase of {mot : closure ; case1 : closure ; case2 : closure ; left : value ; right : value ; scrut : neutral}
-  | NZeroInd of {mot : value ; scrut : neutral}
-
-and closure = {env : value Env.t ; name : ident ; body : term}
-
-and closure3 = {env : value Env.t ; names : ident * ident * ident ; body : term}
-
-and normal = {ty : value ; tm : value}
-[@@@ocaml.warning "+30"]
-
-type stm = 
-  | Eval of term
-  | Decl of string * term
-  | Axiom of string * term
-
-
-let closure_name {name ; _} = name
-let closure3_names {names ; _} = names
+type t = term
 
 let rec freshen used x =
   match x with
@@ -139,7 +55,6 @@ let rec_map_term (f : term -> term) (e : term) : term =
     | Pair (e1,e2) -> Pair (f e1,f e2)
     | Proj1 e -> Proj1 (f e)
     | Proj2 e -> Proj2 (f e)
-    | Ascribe (e,t) -> Ascribe (f e,f t)
     | Type Omega -> Type Omega
     | Var x -> Var x
     | One -> One
@@ -154,14 +69,11 @@ let rec_map_term (f : term -> term) (e : term) : term =
     | Zero -> Zero
     | ZeroInd {mot ; scrut} -> ZeroInd {mot = f mot ; scrut = f scrut}
     | Let (e1,(x,e2)) -> Let (f e1,(x,f e2))
-    | Meta {id ; sol} -> Meta {id ; sol = Option.map ~f sol}
 
 let rec bottom_up (f : term -> term) (e : term) : term = e |> rec_map_term (bottom_up f) |> f
 let rec top_down (f : term -> term) (e : term) : term = e |> f |> rec_map_term (top_down f)
 
 let lift (i : int) : term -> term = bottom_up (function Type (Const j) -> Type (Const (i + j)) | x -> x)
-
-let to_env (ctx : value Env.t) : value Env.t = Env.mapi ctx ~f:(fun ~key ~data -> VNeutral {neu = NVar key ; ty = data})
 
 
 let alpha_equiv (e1 : term) (e2 : term) : bool = 
@@ -186,9 +98,7 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
       | Sg (t,(x,e)), Sg (t',(y,e')) 
       | Let (t,(x,e)),Let(t',(y,e')) -> 
         go i g1 t g2 t' && go (i+1) (g1 ++ (x,i)) e (g2 ++ (y,i)) e'
-      | Type i, Type j -> equal_level i j
-      | Ascribe (e,t), Ascribe (e',t') ->
-        go i g1 e g2 e' && go i g1 t g2 t'
+      | Type i, Type j -> Level.equal i j
       | Proj1 e, Proj1 e' 
       | Proj2 e, Proj2 e' 
       | Refl e, Refl e' 
@@ -207,11 +117,8 @@ let alpha_equiv (e1 : term) (e2 : term) : bool =
         go (i+1) (g1 ++ (b,i)) case2 (g2 ++ (b',i)) case2' &&
         go i g1 scrut g2 scrut'
       | One,One | Unit,Unit | Zero,Zero -> true
-      | Meta {sol = Some e ; _}, Meta {sol = Some e'; _} -> go i g1 e g2 e'
-      | Meta {sol = None; id = id},Meta {sol = None; id = id'} -> id = id'
       | _ -> false
   in go 0 Env.empty e1 Env.empty e2
-
 
 let replace_term (e : term) (e1 : term) : term -> term = 
   bottom_up (fun x -> if alpha_equiv x e then e1 else x)
@@ -241,26 +148,23 @@ let rec pp_term (e : term) : string =
       sprintf "match %s at %s" (pp_term scrut) (pp_term mot)
     | Let (e1,(x,e2)) -> 
       sprintf "let %s = %s in %s" x (pp_term e1) (pp_term e2)
-    | Meta {sol = Some e; _} -> pp_term e
     | _ -> pp_atomic e
 
   
 and pp_atomic (e : term) : string =
   match e with
     | Var x -> x
-    | Meta {sol = None ; id} -> sprintf "_%i" id
     | Lift (x,i) -> sprintf "%s^%i" x i
     | Type Omega -> "TypeOmega"
     | Type (Const 0) -> "Type"
     | Type (Const i) -> sprintf "Type^%i" i
     | One -> "One"
-    | Unit -> "<>"
+    | Unit -> "()"
     | Zero -> "Zero"
     | Proj1 e -> sprintf "%s.1" (pp_atomic e)
     | Proj2 e -> sprintf "%s.2" (pp_atomic e)
     | Inj1 e -> sprintf "1.%s" (pp_atomic e)
     | Inj2 e -> sprintf "2.%s" (pp_atomic e)
-    | Ascribe (e,t) -> sprintf "(%s : %s)" (pp_term e) (pp_term t)
     | Refl e -> sprintf "refl %s" (pp_atomic e)
     | _ -> paren (pp_term e)
 
@@ -269,42 +173,3 @@ let pp_context g =
   List.fold_left xs ~init:"" ~f:(fun s (x,t) -> sprintf "%s\n  %s : %s" s x (pp_term t))
 
 
-(*
-data ℕ : Type =
-  | zero
-  | suc (n : ℕ)
-
-data List (A : Type) : Type =
-  | nil
-  | cons (x : A) (xs : List)
-
-data Sum (A B : Type) : Type =
-  | in1 (a : A)
-  | in2 (b : B)
-
-data Prod (A : Type) (B : A -> Type) : Type = 
-  | pair (fst : A) (snd : B fst)
-
-
-
-
-
-type arg_ty = T of term | Self
-type constructor = {name : ident ; args : (ident * arg_ty) list}
-type desc = {lvl : level ; name : ident ; params : (ident * term) list ; constructors : constructor list}
-
-let nat = { 
-            lvl = Const 0 ; 
-            name = "nat" ; 
-            params = [] ; 
-            constructors = [{name = "zero" ; args = []} ; {name = "suc" ; args = [("n",Self)]}]
-          }
-
-let list = {
-             lvl = Const 0;
-             name = "list";
-             params = [("A",Type (Const 0))];
-             constructors = [{name = "nil"; args = []} ; {name = "cons" ; args = [("x",T (Var "A"));("xs",Self)]}]
-           }
-
-*)

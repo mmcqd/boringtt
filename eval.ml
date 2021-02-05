@@ -1,6 +1,7 @@
 open Core
-open Ast
-
+open Core_tt
+open Value
+open Env
 
 let add3 used (x,y,z) = String.Set.add (String.Set.add (String.Set.add used x) y) z
 
@@ -19,7 +20,6 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
     | Lam (name,body) -> VLam {env ; name ; body}
     | Pi (t,(name,body)) -> VPi (eval sg env t,{env ; name ; body})
     | Type i -> VType i
-    | Ascribe (e,_) -> eval sg env e
     | App (e1,e2) -> do_app sg (eval sg env e1) (eval sg env e2)
     | Sg (t,(name,body)) -> VSg (eval sg env t,{env ; name ; body})
     | Pair (e1,e2) -> VPair (eval sg env e1, eval sg env e2)
@@ -28,7 +28,6 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
     | Id (t,e1,e2) -> VId (eval sg env t,eval sg env e1, eval sg env e2)
     | Refl e -> VRefl (eval sg env e)
     | J {mot ; case ; scrut} -> do_j sg env mot case (eval sg env scrut)
-    | Meta {sol = Some e;_} -> eval sg env e
     | Sum (e1,e2) -> VSum (eval sg env e1, eval sg env e2)
     | Inj1 e -> VInj1 (eval sg env e)
     | Inj2 e -> VInj2 (eval sg env e)
@@ -37,7 +36,6 @@ let rec eval (sg : normal Env.t) (env : value Env.t) (e : term) : value =
     | Zero -> VZero
     | ZeroInd {mot ; scrut} -> do_zero_ind (eval sg env mot) (eval sg env scrut)
     | Let (e1,(x,e2)) -> eval sg (env ++ (x,eval sg env e1)) e2
-    | Meta {sol = None; _} -> failwith "Usolved Meta-Var"
 
   and do_app (sg : normal Env.t) (v1 : value) (v2 : value) : value =
     match v1 with
