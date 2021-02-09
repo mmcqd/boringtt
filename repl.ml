@@ -1,7 +1,9 @@
 open Core
-open Ast
-open Eval
-open Typechecker
+open! Elab
+open! Syntax
+open! Core_tt
+open! Eval
+open! Env
 
 exception ParseError of string
 
@@ -23,21 +25,17 @@ let parse_file s =
 
 let run_stm sg = function
   | Eval e ->
-    let t = synthtype sg e in 
-    let e' = eval sg Env.empty e in
+    let e',t = elaborate sg e in 
     printf "_ : %s\n" (pp_term (read_back sg String.Set.empty (VType Omega) t));
     printf "_ = %s\n\n" (pp_term (read_back sg String.Set.empty t e'));
     sg
   | Decl (x,e) -> 
-    let t = synthtype sg e in
-    let e' = eval sg Env.empty e in
-    let public_t = (match e with Ascribe (_,t) -> t | _ -> read_back sg String.Set.empty (VType Omega) t) in
-    printf "def %s : %s\n\n" x (pp_term public_t);
-    (* printf "%s = %s\n\n" x (pp_term (read_back sg String.Set.empty t e')); *)
+    let e',t = elaborate sg e in
+    printf "def %s \n\n" x;
     sg ++ (x, {tm = e' ; ty = t})
   | Axiom (x,t) ->
-    let t' = eval sg Env.empty t in
-    printf "axiom %s : %s\n\n" x (pp_term t);
+    let t' = eval sg Env.empty (elab_check sg Env.empty t (VType Omega)) in
+    printf "axiom %s \n\n" x;
     sg ++ (x,{tm = VNeutral {ty = t' ; neu = NVar x} ; ty = t'})
 
 
@@ -48,7 +46,7 @@ let rec repl s =
   try repl @@ List.fold (parse txt) ~init:s ~f:run_stm with 
     | TypeError e -> printf "Type Error: %s\n" e;repl s
     | ParseError e -> printf "Parse Error: %s\n" e; repl s
-    | Unsolved e -> printf "\n%s\n" e; repl s
+    (* | Unsolved e -> printf "\n%s\n" e; repl s *)
 
 
 
@@ -59,4 +57,4 @@ let _ : unit =
   try repl @@ List.fold s ~init:Env.empty ~f:run_stm with 
       | TypeError e -> printf "Type Error: %s\n" e
       | ParseError e -> printf "Parse Error: %s\n" e
-      | Unsolved e -> printf "\n%s\n" e
+      (* | Unsolved e -> printf "\n%s\n" e *)

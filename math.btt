@@ -21,6 +21,7 @@ def dcoerce (A : Type) (B : A -> Type) (x y : A) (x≡y : Id A x y) : B x -> B y
   match x≡y with
     | refl _ => λ x => x
 
+
 def subst (A : Type) (P : A -> Type) (x y : A) (x≡y : Id A x y) : P x -> P y =
   match x≡y with
     | refl x => λ x => x
@@ -34,14 +35,26 @@ def coerce-id (A B : Type) (A≡B : Id Type A B) (x y : A) (x≡y : Id A x y) : 
     | refl x => refl
 
 
+def H-Id (A B : Type) (A≡B : Id Type A B) (x : A) (y : B) : Type =
+  Id B (coerce A B A≡B x) y
+
+def H-refl (A : Type) (x : A) : H-Id A A refl x x = refl
+
+def H-sym (A B : Type) (α : Id Type A B) (x : A) (y : B) (β : H-Id A B α x y) : H-Id B A (sym^1 Type A B α) y x =
+  match α with
+    | refl A => 
+      match β with
+       | refl x => refl 
+
+
 def ¬ (A : Type) : Type = A -> ⊥
 
 def ⊥-Ind (P : ⊥ -> Type) (x : ⊥) : P x = match x
   
 def 𝟚 : Type = 𝟙 + 𝟙
 def Bool : Type = 𝟚
-def tt : Bool = 1.<>
-def ff : Bool = 2.<>
+def tt : Bool = 1.()
+def ff : Bool = 2.()
 def Bool-Ind (P : Bool -> Type) (t : P tt) (f : P ff) (b : Bool) : P b = 
   match b with
     | 1._ => t
@@ -52,7 +65,7 @@ def if (A : Type) (b : Bool) (t : A) (f : A) : A =
   Bool-Ind (λ _ => A) t f b 
 
 def ¬tt≡ff : ¬ (Id Bool tt ff) =
-  λ tt≡ff => subst Bool (λ b => if^1 Type b 𝟙 𝟘) tt ff tt≡ff <>
+  λ tt≡ff => subst Bool (λ b => if^1 Type b 𝟙 𝟘) tt ff tt≡ff ()
 
 def not (b : Bool) : Bool = if Bool b ff tt
 
@@ -84,7 +97,7 @@ def de-morgan2 (p q : Bool) : Id Bool (not (and p q)) (or (not p) (not q)) =
 
 def Maybe (A : Type) : Type = A + 𝟙
 def some (A : Type) (x : A) : Maybe A = 1.x
-def none (A : Type) : Maybe A = 2.<>
+def none (A : Type) : Maybe A = 2.()
 
 def Maybe-Ind (A : Type) (P : Maybe A -> Type) (s : (x : A) -> P (some A x)) (n : P (none A)) (m : Maybe A) : P m =
   match m with
@@ -94,9 +107,10 @@ def Maybe-Ind (A : Type) (P : Maybe A -> Type) (s : (x : A) -> P (some A x)) (n 
 def maybe (A B : Type) (s : A -> B) (n : B) (m : Maybe A) : B =
   Maybe-Ind A (λ _ => B) s n m
 
+
 def Pointed-Type : Type^1 = (x : Type) × x
 
-def Pointed-𝟙 : Pointed-Type = (𝟙,<>)
+def Pointed-𝟙 : Pointed-Type = (𝟙,())
 
 def Pointed-Type0 : Pointed-Type^1 = (Type,𝟙)
 
@@ -114,7 +128,7 @@ def ¬𝟙≡𝟘 : ¬^1 (Id Type 𝟙 𝟘) =
 def Contractible (A : Type) : Type = (x : A) × (y : A) -> Id A x y
 
 def 𝟙-Contractible : Contractible 𝟙 =
-  (<> , λ x => refl)
+  (() , λ x => refl)
 
 def ⇔ (A B : Type) : Type = (A -> B) × (B -> A)
 
@@ -123,107 +137,111 @@ def ≃ (A B : Type) : Type =
 
 
 def iso/×-comm (A B : Type) : ≃ (A × B) (B × A) =
-  (λ p => p.2 , p.1) ,
-  (λ p => p.2 , p.1) ,
-  (λ x => refl) ,
-  (λ x => refl)
+  (λ p => (p.2 , p.1) ,
+   λ p => (p.2 , p.1) ,
+   λ x => refl ,
+   λ x => refl)
+
 
 def iso/+-comm (A B : Type) : ≃ (A + B) (B + A) =
-  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
-  (λ s => match s with 1.x => 2.x | 2.x => 1.x),
-  (λ x => match x with 1.x => refl | 2.x => refl),
-  (λ x => match x with 1.x => refl | 2.x => refl)
+  (λ s => match s with 1.x => 2.x | 2.x => 1.x ,
+   λ s => match s with 1.x => 2.x | 2.x => 1.x ,
+   λ x => match x with 1.x => refl | 2.x => refl ,
+   λ x => match x with 1.x => refl | 2.x => refl)
 
 
 def iso/×-ident-r (A : Type) : ≃ A (A × 𝟙) =
-  (λ x => x , <>) ,
-  (λ p => p.1) ,
-  (λ x => refl) ,
-  (λ p => refl)
+  (λ x => (x , ()) ,
+   λ p => p.1 ,
+   λ x => refl ,
+   λ p => refl)
 
 def iso/+-ident-r (A : Type) : ≃ A (A + 𝟘) =
-  (λ a => 1.a),
-  (λ s => match s with 
+  (λ a => 1.a,
+   λ s => match s with 
     | 1.a => a 
-    | 2.f => match f),
-  (λ x => refl),
-  (λ s => match s with
+    | 2.f => match f ,
+   λ x => refl ,
+   λ s => match s with
       | 1.a => refl
       | 2.b => match b)
 
 def iso/≃-comm (A B : Type) : ≃^1 (≃ A B) (≃ B A) =
-  (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
-  (λ p => p.2.1, p.1, p.2.2.2, p.2.2.1),
-  (λ x => refl),
-  (λ x => refl)
+  (λ p => (p.2.1, p.1, p.2.2.2, p.2.2.1) ,
+   λ p => (p.2.1, p.1, p.2.2.2, p.2.2.1) ,
+   λ x => refl ,
+   λ x => refl)
+
 
 def iso/×-destroy-r (A : Type) : ≃ (A × 𝟘) 𝟘 =
-  (λ p => p.2),
-  (λ v => match v),
-  (λ p => match p.2),
-  (λ v => match v)
+  (λ p => p.2 ,
+   λ v => match v ,
+   λ p => match p.2 ,
+   λ v => match v)
 
 def iso/exp-ident-r (A : Type) : ≃ A (𝟙 -> A) =
-  (λ a _ => a) ,
-  (λ t => t <>) ,
-  (λ a => refl) ,
-  (λ t => refl)
+  (λ a _ => a  ,
+   λ t => t () ,
+   λ a => refl ,
+   λ t => refl)
 
 def iso/sum-mul (A : Type) : ≃ (A + A) (𝟚 × A) =
   (λ s => match s with
-    | 1.x => tt,x
-    | 2.x => ff,x) ,
-  (λ p => if (A + A) p.1 (1.(p.2)) (2.(p.2)) ),
-  (λ s => match s with
+    | 1.x => (tt,x)
+    | 2.x => (ff,x) ,
+   λ p => if (A + A) p.1 (1.(p.2)) (2.(p.2)) ,
+   λ s => match s with
     | 1.x => refl
-    | 2.x => refl),
-  (λ p => match p.1 with
+    | 2.x => refl ,
+   λ p => match p.1 with
     | 1.x => refl
     | 2.x => refl)
 
 
 def iso/×-assoc (A B C : Type) : ≃ (A × (B × C)) ((A × B) × C) =
-  (λ x => (x.1,x.2.1),x.2.2),
-  (λ x => (x.1.1,(x.1.2,x.2))),
-  (λ _ => refl),
-  (λ _ => refl)
+  (λ x => ((x.1,x.2.1),x.2.2) ,
+   λ x => (x.1.1,(x.1.2,x.2)),
+   λ _ => refl ,
+   λ _ => refl)
+
 
 def iso/distrib (A B C : Type) : ≃ (A × (B + C)) ((A × B) + (A × C)) =
   (λ p => match p.2 with
     | 1.b => 1.(p.1,b)
-    | 2.c => 2.(p.1,c)),
-  (λ s => match s with
-    | 1.p => p.1,1.(p.2)
-    | 2.p => p.1,2.(p.2)),
-  (λ p => match p.2 with
+    | 2.c => 2.(p.1,c) ,
+   λ s => match s with
+    | 1.p => (p.1,1.(p.2))
+    | 2.p => (p.1,2.(p.2)),
+   λ p => match p.2 with
     | 1.a => refl
-    | 2.b => refl),
-  (λ s => match s with
+    | 2.b => refl ,
+   λ s => match s with
     | 1.p => refl
     | 2.p => refl)
 
+
 def ≃-sym (A B : Type) (A2B : ≃ A B) : ≃ B A =
-  A2B.2.1,
-  A2B.1,
-  A2B.2.2.2,
-  A2B.2.2.1
+  (A2B.2.1,
+   A2B.1,
+   A2B.2.2.2,
+   A2B.2.2.1)
 
 def ≃-trans (A B C : Type) (A2B : ≃ A B) (B2C : ≃ B C) : ≃ A C =
-  (λ a => B2C.1 (A2B.1 a)),
-  (λ c => A2B.2.1 (B2C.2.1 c)),
-  (λ x =>
+  (λ a => B2C.1 (A2B.1 a),
+   λ c => A2B.2.1 (B2C.2.1 c) ,
+   λ x => 
     let eq = cong B A A2B.2.1 (B2C.2.1 (B2C.1 (A2B.1 x))) (A2B.1 x) (B2C.2.2.1 (A2B.1 x)) in
     trans A (A2B.2.1 (B2C.2.1 (B2C.1 (A2B.1 x)))) (A2B.2.1 (A2B.1 x)) x eq (A2B.2.2.1 x)
-  ) ,
-  (λ x =>
+    ,
+   λ x =>
     let eq = cong B C B2C.1 (A2B.1 (A2B.2.1 (B2C.2.1 x))) (B2C.2.1 x) (A2B.2.2.2 (B2C.2.1 x)) in
     trans C (B2C.1 (A2B.1 (A2B.2.1 (B2C.2.1 x)))) (B2C.1 (B2C.2.1 x)) x eq (B2C.2.2.2 x)
   )
 
 
-def Functor : Type^1 = (F : Type -> Type) × (A B : Type) -> (A -> B) -> F A -> F B
+def Functor (F : Type -> Type) : Type^1 = (A B : Type) -> (A -> B) -> F A -> F B
 
-def Maybe-F : Functor = Maybe, fn A B f x => match x with 1.x => 1.(f x) | 2.x => 2.x
+def Maybe-F : Functor Maybe = fn A B f x => match x with 1.x => 1.(f x) | 2.x => 2.x
 
 def EM : Type^1 = (A : Type) -> A + ¬ A
 def DNE : Type^1 = (A : Type) -> ¬ (¬ A) -> A
@@ -233,18 +251,38 @@ def EM->DNE (em : EM) : DNE =
     | 1.x => x
     | 2.x => match ¬¬A x
 
-{-
-def DNE->EM (dne : DNE) : EM =
-  λ A => dne (A + ¬ A) (λ ¬em => ?)
--}
 
 def pair-ext (A B : Type) (p q : A × B) (α : Id A p.1 q.1) (β : Id B p.2 q.2) : Id (A × B) p q = 
   match α with
-    | refl _ =>
+    | refl x => 
       match β with
-        | refl _ => refl
+        | refl y => refl
 
-axiom 𝟛 : Type
-axiom aa : 𝟛
-axiom bb : 𝟛
-axiom cc : 𝟛
+
+
+def cId (A : Type) (x y : A) : Type^1 = (P : A -> Type) -> P x -> P y
+
+def crefl (A : Type) (x : A) : cId A x x = fn _ x => x
+
+def equiv/Id-cId (A : Type) (x y : A) : ⇔^1 (Id A x y) (cId A x y) = 
+  (λ eq => match eq with refl x => fn _ x => x,λ ceq => ceq (λ z => Id A x z) refl)
+
+{-
+data Nat : Type =
+  | zero
+  | suc (n : Nat)
+
+data List (A : Type) : Type =
+  | nil
+  | cons (x : A) (xs : List)
+
+data Tree (A : Type) : Type =
+  | empty
+  | node (left : Tree) (x : A) (right : Tree)
+
+data Sum (A B : Type) : Type =
+  | in1 (a : A)
+  | in2 (b : B)
+
+Sum One One
+-}
