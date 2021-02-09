@@ -1,9 +1,16 @@
 open Core
 open Env
 
+
+
+
+
 type ident = Syntax.ident
 type 'a binder = 'a Syntax.binder
 type 'a binder3 = 'a Syntax.binder3
+type 'a tele = 'a Syntax.tele
+
+
 
 type term = 
   | Var of ident
@@ -28,6 +35,8 @@ type term =
   | Zero
   | ZeroInd of {mot : term ; scrut : term}
   | Let of (term * term binder)
+  (* | DataTyCon of {name : ident ; params : term list; lvl : Level.t}
+  | DataCon of {name : ident ; src : ident ; args : term list} *)
 
 type t = term
 
@@ -128,26 +137,27 @@ let paren (e : string) : string = "("^e^")"
 
 let rec pp_term (e : term) : string =
   match e with
-    | Lam (x,e) -> sprintf "fn %s => %s" x (pp_term e)
-    | Pi (Pi _ as t,("_",e)) -> sprintf "(%s) -> %s" (pp_term t) (pp_term e)
-    | Pi (t,("_",e)) -> sprintf "%s -> %s" (pp_term t) (pp_term e)
-    | Pi (t,(x,e)) -> sprintf "(%s : %s) -> %s" x (pp_term t) (pp_term e)
+    | Lam (x,e) -> sprintf "λ %s ⇒ %s" x (pp_term e)
+    | Pi (Pi _ as t,("_",e)) -> sprintf "(%s) → %s" (pp_term t) (pp_term e)
+    | Pi (t,("_",e)) -> sprintf "%s → %s" (pp_term t) (pp_term e)
+    | Pi (t,(x,e)) -> sprintf "(%s : %s) → %s" x (pp_term t) (pp_term e)
     | App ((Lam _ | J _ | ZeroInd _ | Case _) as e1,e2) -> sprintf "(%s) %s" (pp_term e1) (pp_term e2)
     | App (e1,(App _ as e2)) -> sprintf "%s (%s)" (pp_term e1) (pp_term e2)
     | App (e1,e2) -> sprintf "%s %s" (pp_term e1) (pp_atomic e2)
-    | Sg (t,("_",e)) -> sprintf "%s * %s" (pp_atomic t) (pp_atomic e)
-    | Sg (t,(x,e)) -> sprintf "(%s : %s) * %s" x (pp_term t) (pp_atomic e)
+    | Sg (t,("_",e)) -> sprintf "%s × %s" (pp_atomic t) (pp_atomic e)
+    | Sg (t,(x,e)) -> sprintf "(%s : %s) × %s" x (pp_term t) (pp_atomic e)
     | Pair (e1,e2) -> sprintf "%s, %s" (pp_atomic e1) (pp_atomic e2)
     | Id (t,e1,e2) -> sprintf "Id %s %s %s" (pp_atomic t) (pp_atomic e1) (pp_atomic e2)
     | J {mot = (x,y,z,mot) ; case = (a,case) ; scrut} -> 
-      sprintf "match %s at %s %s %s => %s with refl %s => %s" (pp_term scrut) x y z (pp_term mot) a (pp_term case)
+      sprintf "match %s at %s %s %s ⇒ %s with refl %s ⇒ %s" (pp_term scrut) x y z (pp_term mot) a (pp_term case)
     | Sum (e1,e2) -> sprintf "%s + %s" (pp_atomic e1) (pp_atomic e2)
     | Case {mot = (x,mot) ; case1 = (a,case1) ; case2 = (b,case2) ; scrut} ->
-      sprintf "match %s at %s => %s with 1.%s => %s | 2.%s => %s" (pp_term scrut) x (pp_term mot) a (pp_term case1) b (pp_term case2)
+      sprintf "match %s at %s => %s with 1.%s ⇒ %s | 2.%s ⇒ %s" (pp_term scrut) x (pp_term mot) a (pp_term case1) b (pp_term case2)
     | ZeroInd {mot ; scrut} -> 
       sprintf "match %s at %s" (pp_term scrut) (pp_term mot)
     | Let (e1,(x,e2)) -> 
       sprintf "let %s = %s in %s" x (pp_term e1) (pp_term e2)
+    | Refl e -> sprintf "refl %s" (pp_atomic e)
     | _ -> pp_atomic e
 
   
@@ -155,21 +165,26 @@ and pp_atomic (e : term) : string =
   match e with
     | Var x -> x
     | Lift (x,i) -> sprintf "%s^%i" x i
-    | Type Omega -> "TypeOmega"
+    | Type Omega -> "Type^ω"
     | Type (Const 0) -> "Type"
     | Type (Const i) -> sprintf "Type^%i" i
-    | One -> "One"
+    | One -> "𝟙"
     | Unit -> "()"
-    | Zero -> "Zero"
+    | Zero -> "𝟘"
     | Proj1 e -> sprintf "%s.1" (pp_atomic e)
     | Proj2 e -> sprintf "%s.2" (pp_atomic e)
     | Inj1 e -> sprintf "1.%s" (pp_atomic e)
     | Inj2 e -> sprintf "2.%s" (pp_atomic e)
-    | Refl e -> sprintf "refl %s" (pp_atomic e)
     | _ -> paren (pp_term e)
 
 let pp_context g = 
   let xs = String.Map.to_alist g in
-  List.fold_left xs ~init:"" ~f:(fun s (x,t) -> sprintf "%s\n  %s : %s" s x (pp_term t))
+  List.fold_left xs ~init:"" ~f:(fun s -> function ("_",_) -> "" | (x,t) -> sprintf "%s\n  %s : %s" s x (pp_term t))
 
 
+(*
+
+
+Spine ("cons",Snoc (Snoc (Nil,tt),xs))
+
+*)

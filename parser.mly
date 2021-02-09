@@ -75,6 +75,8 @@ let atomic :=
   | ~ = atomic; DotTwo; <Syntax.Proj2>
   | OneDot; ~ = atomic; <Syntax.Inj1>
   | TwoDot; ~ = atomic; <Syntax.Inj2>
+  | Refl; { Syntax.Refl Meta }
+
 
 
 let spine :=
@@ -94,7 +96,6 @@ let term :=
   | t1 = term; Star; t2 = term; { Syntax.Sg ([("_",t1)],t2) }
   | t1 = term; Plus; t2 = term; { Syntax.Sum (t1,t2) }
   | Refl; ~ = atomic; <Syntax.Refl>
-  | Refl; { Syntax.Refl Meta }
   | Id; t = atomic; e1 = atomic; e2 = atomic; <Syntax.Id>
 
   | Let; x = bound_name; Equal; e1 = term; In; e2 = term; {Syntax.Let (e1,(x,e2)) }

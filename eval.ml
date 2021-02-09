@@ -147,11 +147,11 @@ and read_back (sg : normal Env.t) (used : String.Set.t) (ty : value) (v : value)
       | NApp (neu,norm) -> App (read_back_neutral sg used neu,read_back_normal sg used norm)
       | NProj1 neu -> Proj1 (read_back_neutral sg used neu)
       | NProj2 neu -> Proj2 (read_back_neutral sg used neu)
-      | NJ {mot ; case ; ty ; left ; right ; scrut} ->
+      | NJ {mot ; case ; ty ; left = _; right = _ ; scrut} ->
         let x,y,z = freshen3 used (closure3_names mot) in
         let x_val = VNeutral {ty ; neu = NVar x} in
         let y_val = VNeutral {ty ; neu = NVar y} in
-        let z_val = VNeutral {ty = VId (ty,left,right) ; neu = NVar z} in
+        let z_val = VNeutral {ty = VId (ty,x_val,y_val) ; neu = NVar z} in
         let a = freshen used (closure_name case) in
         let a_val = VNeutral {ty ; neu = NVar a} in
         let mot' = read_back sg (add3 used (x,y,z)) (VType Omega) (eval_closure3 sg mot (x_val,y_val,z_val)) in

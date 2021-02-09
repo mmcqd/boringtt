@@ -6,9 +6,21 @@ open Eval
 open Env
 
 exception TypeError of string
+exception ParseError of string
+
 let pp_ty (sg : normal Env.t) (ctx : value Env.t) (t : value) : string =
   pp_term @@ read_back sg (Env.key_set ctx) (VType Omega) t
 
+let parse_refinement s = 
+  let lexbuf = Lexing.from_string s in
+  try 
+    match Parser.init Lexer.initial lexbuf with
+      | [Eval e] -> e
+      | _ -> raise @@ ParseError "Refinement must be a term"
+  with
+    | _ ->
+      let (s,e) = of_position lexbuf.lex_start_p,of_position lexbuf.lex_curr_p in
+      raise @@ ParseError (sprintf "%s:%s" (show_loc s) (show_loc e))
 
 
 
@@ -103,6 +115,18 @@ let rec elab_synth (sg : Value.normal Env.t) (ctx : Value.t Env.t) (tm : Syntax.
   and elab_check (sg : Value.normal Env.t) (ctx : Value.t Env.t) (tm : Syntax.t) (ty : Value.t) : Core_tt.t =
     (* print_endline @@ "CHECK " ^ Syntax.show_term tm ^ " AT " ^ pp_ty sg ctx ty; *)
     match tm,ty with
+      | Meta ,_ ->
+        let ctx' = Env.map ctx ~f:(read_back sg (Env.key_set ctx) (VType Omega)) in
+        printf "\nHole:%s\n\n%s\n  %s\n" (pp_context ctx') (String.init ~f:(const '-') 45) (pp_ty sg ctx ty);
+        let rec interactive () =
+          print_string "\nRefinement: ";
+          let txt = Stdlib.read_line () in
+          match txt with
+            | "" -> interactive ()
+            | _ -> 
+            let r = parse_refinement txt in
+            elab_check sg ctx r ty
+        in interactive ()
       | Type i,VType j -> 
         if Level.(<) i j then Type i else
         raise @@ TypeError (sprintf "%s too large to be contained in %s" (pp_term (Type i)) (pp_ty sg ctx ty))

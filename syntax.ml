@@ -1,6 +1,15 @@
 
 open! Core
 
+
+type loc = {line : int ; col : int}
+
+let of_position (pos : Lexing.position) : loc =
+  Lexing.{ line = pos.pos_lnum; col = pos.pos_cnum - pos.pos_bol + 1 (* 1-indexed *) }
+
+let show_loc {line ; col} = sprintf "%i:%i" line col
+
+
 type ident = string
   [@@deriving show]
 
